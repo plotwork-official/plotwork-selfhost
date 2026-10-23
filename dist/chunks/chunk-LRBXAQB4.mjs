@@ -488,6 +488,57 @@ var NODE_CHANGE_SPECS = {
 // ../../packages/diagrams/src/constants/node-stack.ts
 var STACK_LIMIT = 3;
 
+// ../../packages/diagrams/src/constants/legend.ts
+var LEGEND_VALUES = ["off", "on", "left", "center", "right"];
+var LEGEND_SHOWN_VALUES = ["on", "left", "center", "right"];
+var LEGEND_SECTIONS = ["lines", "boxes", "icons", "groups", "changes"];
+var LEGEND_PART_PRESETS = {
+  all: LEGEND_SECTIONS,
+  basic: ["lines", "boxes", "groups", "changes"]
+};
+var LEGEND_PART_WORDS = [...LEGEND_SECTIONS, ...Object.keys(LEGEND_PART_PRESETS)];
+var LEGEND_TITLES = {
+  legend: "Legend",
+  lines: "Lines",
+  boxes: "Boxes",
+  icons: "Icons",
+  groups: "Groups",
+  changes: "Changes"
+};
+var LINE_LEGEND_NAMES = [
+  { line: "solid", heads: "end", name: "Call or data flow" },
+  { line: "dashed", heads: "end", name: "Optional or indirect" },
+  { line: "solid", heads: "both", name: "Two-way" },
+  { line: "dashed", heads: "both", name: "Two-way, optional" },
+  { line: "dotted", heads: "end", name: "Asynchronous" },
+  { line: "solid", heads: "none", name: "Association" }
+];
+var LINE_LOOK_NAMES = { solid: "Line", dashed: "Dashed line", dotted: "Dotted line" };
+var NODE_TYPE_LEGEND_NAMES = {
+  person: "Person",
+  agent: "Agent",
+  client: "Client app",
+  service: "Service",
+  gateway: "Gateway",
+  function: "Function",
+  database: "Database",
+  cache: "Cache",
+  queue: "Queue",
+  storage: "Storage",
+  identity: "Identity",
+  secret: "Secret",
+  external: "External system",
+  step: "Step",
+  decision: "Decision",
+  terminal: "Start or end"
+};
+var NODE_CHANGE_LEGEND_NAMES = {
+  create: "Created",
+  update: "Changed in place",
+  replace: "Replaced",
+  destroy: "Destroyed"
+};
+
 // ../../packages/diagrams/src/constants/line-roles.ts
 var LINE_ROLES = ["data", "identity", "async", "private"];
 var LINE_ROLE_SPECS = {
@@ -547,55 +598,18 @@ var LINE_OPTION_SPECS = [
   {
     key: "legend",
     scope: "header",
-    values: SWITCH_VALUES.join(", "),
-    meaning: "Flow only. on draws a legend under the diagram that names what the picture uses: each kind of line and line role, each type of box, each product icon, each group type, and each planned change. Off unless turned on; the repository settings and an organisation can turn it on.",
-    example: 'flow "Platform" legend=on'
+    values: LEGEND_VALUES.join(", "),
+    meaning: "Flow only. A legend of what the picture uses (lines, roles, boxes, icons, groups, changes), centred under the diagram; left or right aligns it, a tall diagram takes it beside. On unless off.",
+    example: 'flow "Platform" legend=left'
+  },
+  {
+    key: "legendparts",
+    scope: "header",
+    values: LEGEND_PART_WORDS.join(", "),
+    meaning: "Flow only. The legend's parts, a comma list of lines, boxes, icons, groups, changes; all (the default) or basic (no icons).",
+    example: 'flow "Platform" legend=on legendparts=lines,boxes'
   }
 ];
-
-// ../../packages/diagrams/src/constants/legend.ts
-var LEGEND_SECTIONS = ["lines", "boxes", "icons", "groups", "changes"];
-var LEGEND_TITLES = {
-  legend: "Legend",
-  lines: "Lines",
-  boxes: "Boxes",
-  icons: "Icons",
-  groups: "Groups",
-  changes: "Changes"
-};
-var LINE_LEGEND_NAMES = [
-  { line: "solid", heads: "end", name: "Call or data flow" },
-  { line: "dashed", heads: "end", name: "Optional or indirect" },
-  { line: "solid", heads: "both", name: "Two-way" },
-  { line: "dashed", heads: "both", name: "Two-way, optional" },
-  { line: "dotted", heads: "end", name: "Asynchronous" },
-  { line: "solid", heads: "none", name: "Association" }
-];
-var LINE_LOOK_NAMES = { solid: "Line", dashed: "Dashed line", dotted: "Dotted line" };
-var NODE_TYPE_LEGEND_NAMES = {
-  person: "Person",
-  agent: "Agent",
-  client: "Client app",
-  service: "Service",
-  gateway: "Gateway",
-  function: "Function",
-  database: "Database",
-  cache: "Cache",
-  queue: "Queue",
-  storage: "Storage",
-  identity: "Identity",
-  secret: "Secret",
-  external: "External system",
-  step: "Step",
-  decision: "Decision",
-  terminal: "Start or end"
-};
-var NODE_CHANGE_LEGEND_NAMES = {
-  create: "Created",
-  update: "Changed in place",
-  replace: "Replaced",
-  destroy: "Destroyed"
-};
 
 // ../../packages/diagrams/src/constants/color-themes.ts
 var COLOR_THEMES = ["plotwork", "slate", "ocean", "forest", "sunset", "mono", "contrast"];
@@ -8770,6 +8784,7 @@ var SIMPLE_CORE_ART = {
   "betterstack": '<path d="m.7792 10.7479-.7654 6.6384a2.0957 2.0957 0 0 0 .696 1.8122l1.8965 1.672c.6494.5725 1.658.0145 1.5185-.84L2.6039 10.705c-.1723-1.056-1.7022-1.02-1.8247.0429Zm12.3733 8.714L8.63 6.431c-.5023-1.4472-2.6082-1.3845-3.0203.0898l-1.376 4.9234c-.156.559-.216.8822.0005 1.4212h.5225l1.8993 6.0694c.294.7324.9017 1.3009 1.6611 1.5538l2.8315.9435c1.2417.4137 2.4268-.7513 2.004-1.97zm10.6297-1.0332L15.7907 3.4433c-.6971-1.3072-2.5779-1.2727-3.227.0589l-1.9652 3.9555c-.2375.487-.1274.6608.07.9435.1585.2268.526.2447.6758.012.147-.2287.488-.2076.6058.0375l5.1379 10.687a2.735 2.735 0 0 0 2.1416 1.6016l2.7183.3476c1.4628.1924 2.5299-1.3539 1.8343-2.6582z"/>',
   "kong": '<path d="M7.88 18.96h4.405l2.286 2.876-.393.979h-5.69l.139-.979-1.341-2.117.594-.759Zm3.152-12.632 2.36-.004L24 18.97l-.824 3.845h-4.547l.283-1.083L9 9.912l2.032-3.584Zm4.17-5.144 4.932 3.876-.632.651.855 1.191v1.273l-2.458 2.004-4.135-4.884h-2.407l.969-1.777 2.876-2.334ZM4.852 13.597l3.44-2.989 4.565 5.494-1.296 2.012h-4.21l-2.912 3.822-.665.879H0v-4.689l3.517-4.529h1.335Z"/>',
   "1password": '<path d="M12 0c6.627 0 12 5.373 12 12 0 6.628-5.373 12-12 12S0 18.628 0 12C0 5.373 5.373 0 12 0m-.893 4.86c-.485 0-.727.001-.913.095a.87.87 0 0 0-.378.379c-.094.185-.095.428-.095.912v2.747c0 .12 0 .182.016.238q.02.075.065.138a1 1 0 0 0 .175.162l.695.564c.113.092.17.139.19.194a.22.22 0 0 1 0 .15c-.02.056-.077.102-.19.194l-.695.564a1 1 0 0 0-.175.162.4.4 0 0 0-.065.138 1 1 0 0 0-.016.238v6.019c0 .485 0 .728.095.913a.87.87 0 0 0 .378.378c.186.094.428.094.913.094h1.786c.485 0 .727 0 .913-.094a.87.87 0 0 0 .378-.378c.095-.185.095-.428.095-.913v-2.747c0-.12 0-.182-.016-.238a.4.4 0 0 0-.065-.138 1 1 0 0 0-.175-.162l-.695-.564c-.113-.092-.17-.138-.191-.193a.22.22 0 0 1 0-.152c.02-.055.078-.1.19-.193l.696-.564a1 1 0 0 0 .175-.162.4.4 0 0 0 .065-.138 1 1 0 0 0 .016-.238V6.246c0-.484 0-.727-.095-.912a.87.87 0 0 0-.378-.379c-.186-.094-.428-.094-.913-.094Z"/>',
+  "snyk": '<path d="M17.097 13.344c.143-.37.06-2.117-.222-4.675l-.004-.04.904-2.431v-.05c0-1.06-1.374-3.9-2.186-5.41L15.192 0l-.84 5.854-.503.829-.125-.042c-.351-.118-1.042-.316-1.728-.316-.65 0-1.294.171-1.72.315l-.125.042-.504-.827L8.807 0l-.396.737c-.812 1.51-2.186 4.35-2.186 5.411v.05l.904 2.432-.004.039c-.283 2.558-.366 4.305-.222 4.674.13.332.642 1.041 1.072 1.605l-.619 5.724.617.442.576-5.329c.012.414.064 1.277.275 2.068l-.389 3.592L12 24l4.279-3.067.375-.268-.62-5.73c.428-.561.934-1.262 1.063-1.591zM15.59 2.298c.694 1.408 1.421 3.08 1.471 3.779l-.388 1.045c-.935-1.31-1.228-3.441-1.253-3.636zm-1.124 7.8c.84 0 .212.712.138.792h-1.587c.144-.18.69-.792 1.45-.792zm-.452 1.468a.178.178 0 0 1-.175.153.292.292 0 1 0 .441-.31h.504v.024a.662.662 0 0 1-1.325 0v-.025h.511l-.008.007c.039.038.06.093.052.15zM12.39 19.29c.097.064.2.115.306.156-.168.19-.399.287-.697.287-.299 0-.53-.097-.697-.288.107-.04.21-.092.306-.156a.573.573 0 0 0 .391.114c.103 0 .255 0 .391-.113zm-2.62-7.724a.178.178 0 0 1-.174.153.292.292 0 1 0 .441-.31h.504v.024a.662.662 0 0 1-1.326 0v-.025h.511l-.008.007c.039.038.06.093.052.15zm-.374-.676c-.074-.08-.702-.792.138-.792.759 0 1.305.612 1.45.792zM6.948 6.077c.05-.699.778-2.37 1.471-3.78l.185 1.29c-.07.48-.393 2.37-1.257 3.56zM9.473 18.09c-.373-1.02-.377-2.446-.377-2.507v-.097l-.06-.076c-.551-.683-1.477-1.9-1.616-2.257l-.005-.014c-.124-.43.1-2.997.268-4.513l.008-.066-.187-.502.07-.075c.476-.497.88-1.213 1.203-2.126L9 5.223l.118.82.807 1.326.22-.094c.009-.004.934-.4 1.851-.4H12v.44h-.004c-.812 0-1.669.36-1.677.363l-.571.246-.797-1.308c-.27.62-.585 1.137-.94 1.543l.129.347-.019.169c-.24 2.156-.348 4.044-.285 4.332.086.2.523.812 1 1.437l.748-.218 1.17-1.334.184 3.458c-.011.015-.28.393-.28.609 0 .235.344.541.685.786.005-.01.007-.02.013-.03.12-.212.275-.251.346-.087.04.092.028.369.028.369l.005.002v.328c-.013.027-.302.674-1.014.674-.275 0-.948-.089-1.248-.911zm2.536 2.409c-.527 0-1.297-.257-1.374-.952.029.001.057.003.086.003.06 0 .119-.003.177-.01.235.455.665.6 1.102.6.436 0 .865-.146 1.1-.6.059.007.119.01.18.01.029 0 .057-.002.085-.003-.076.695-.835.952-1.356.952zm2.956-5.09l-.061.077v.097c0 .06-.004 1.487-.377 2.507-.3.822-.973.91-1.248.91-.71 0-1.002-.658-1.014-.686V18l.005-.004s-.012-.276.028-.368c.07-.164.226-.126.346.088.006.009.009.02.013.03.34-.246.686-.552.686-.787 0-.216-.269-.593-.28-.61l.183-3.457 1.17 1.334 1.2.35c-.23.304-.463.6-.651.834zm-8.472-1.907c-.22-.563-.022-2.916.187-4.817l-.895-2.409v-.128c0-.312.095-.734.246-1.207-1.177.253-1.808.49-1.808.49v12.996l2.67 1.914.577-5.332c-.538-.718-.868-1.226-.977-1.507zm3.853-7.346c.446-.136 1.042-.27 1.65-.27.61 0 1.21.135 1.658.27l.276-.453.184-1.288s-1.288-.068-2.103-.068c-.759 0-1.467.026-2.125.07l.184 1.286zm7.623-1.217c.151.474.247.896.247 1.21v.127l-.895 2.409c.208 1.901.406 4.253.186 4.818-.109.279-.435.782-.968 1.493l.578 5.337 2.66-1.906V5.432s-.632-.24-1.808-.493Z"/>',
   "sonarqubeserver": '<path d="M12 0a.774.774 0 0 0-.775.775c0 .43.346.776.775.776 5.762 0 10.45 4.687 10.45 10.449 0 .43.345.775.775.775A.774.774 0 0 0 24 12c0-6.616-5.384-12-12-12zm0 3.932a.774.774 0 0 0-.775.775c0 .43.346.775.775.775A6.524 6.524 0 0 1 18.518 12c0 .43.346.775.775.775.43 0 .775-.346.775-.775 0-4.448-3.62-8.068-8.068-8.068zm0 3.925a.774.774 0 0 0-.775.776c0 .43.346.775.775.775A2.597 2.597 0 0 1 14.592 12c0 .43.346.775.775.775.43 0 .776-.346.776-.775A4.145 4.145 0 0 0 12 7.857zM.775 11.225A.774.774 0 0 0 0 12c0 6.616 5.384 12 12 12 .43 0 .775-.346.775-.775a.774.774 0 0 0-.775-.776C6.238 22.45 1.55 17.762 1.55 12a.774.774 0 0 0-.775-.775zm3.932 0a.774.774 0 0 0-.775.775c0 4.448 3.62 8.068 8.068 8.068.43 0 .775-.346.775-.775a.774.774 0 0 0-.775-.775A6.524 6.524 0 0 1 5.482 12a.774.774 0 0 0-.775-.775zm3.926 0a.774.774 0 0 0-.776.775A4.145 4.145 0 0 0 12 16.143c.43 0 .775-.347.775-.776a.774.774 0 0 0-.775-.775A2.597 2.597 0 0 1 9.408 12a.774.774 0 0 0-.775-.775z"/>',
   "eslint": '<path d="M7.257 9.132L11.816 6.5a.369.369 0 0 1 .368 0l4.559 2.632a.369.369 0 0 1 .184.32v5.263a.37.37 0 0 1-.184.319l-4.559 2.632a.369.369 0 0 1-.368 0l-4.559-2.632a.369.369 0 0 1-.184-.32V9.452a.37.37 0 0 1 .184-.32M23.852 11.53l-5.446-9.475c-.198-.343-.564-.596-.96-.596H6.555c-.396 0-.762.253-.96.596L.149 11.509a1.127 1.127 0 0 0 0 1.117l5.447 9.398c.197.342.563.517.959.517h10.893c.395 0 .76-.17.959-.512l5.446-9.413a1.069 1.069 0 0 0 0-1.086m-4.51 4.556a.4.4 0 0 1-.204.338L12.2 20.426a.395.395 0 0 1-.392 0l-6.943-4.002a.4.4 0 0 1-.205-.338V8.08c0-.14.083-.269.204-.338L11.8 3.74c.12-.07.272-.07.392 0l6.943 4.003a.4.4 0 0 1 .206.338z"/>',
   "rollupdotjs": '<path d="M3.42.0002a.37.37 0 00-.369.37V19.885c.577-1.488 1.557-3.6168 3.1378-6.5297C11.8885 2.876 12.6355 1.8191 15.6043 1.8191c1.56 0 3.1338.704 4.1518 1.9549A7.9616 7.9616 0 0013.1014.0002zM16.1393 2.544c-1.19.01-2.257.466-2.6979 1.498-.967 2.2558 1.624 4.7667 2.7569 4.5677 1.4419-.255-.255-3.5628-.255-3.5628 2.2049 4.1558 1.6969 2.8838-2.2899 6.6996C9.6666 15.5623 5.596 23.6188 5.002 23.9568a.477.477 0 01-.08.043H20.558a.373.373 0 00.33-.538l-4.0878-8.0915a.37.37 0 01.144-.488 7.9596 7.9596 0 004.0048-6.9126c0-1.4249-.373-2.7608-1.03-3.9198-.9269-.9519-2.4298-1.5159-3.7787-1.5059z"/>',
@@ -41956,10 +41971,13 @@ function legendParts(diagram) {
     groups: groupEntries,
     changes: changeEntries
   };
-  return LEGEND_SECTIONS.map((section) => ({ section, entries: build[section](diagram) })).filter((part) => part.entries.length > 0);
+  const shown2 = diagram.legendParts ?? LEGEND_SECTIONS;
+  return LEGEND_SECTIONS.filter((section) => shown2.includes(section)).map((section) => ({ section, entries: build[section](diagram) })).filter((part) => part.entries.length > 0);
 }
 var M4 = LEGEND_METRICS;
-var rowWidth = (entry2) => M4.sampleWidth + M4.sampleGap + measureRole(entry2.name, "edgeLabel");
+var LEGEND_NAME_ROLE = "groupLabel";
+var NAME_ROLE = LEGEND_NAME_ROLE;
+var rowWidth = (entry2) => M4.sampleWidth + M4.sampleGap + measureRole(entry2.name, NAME_ROLE);
 function columnsOf2(section, entries2) {
   const columns = [];
   for (let start2 = 0; start2 < entries2.length; start2 += M4.rowsPerColumn) {
@@ -41978,46 +41996,72 @@ function placeColumn(column, x, y) {
     return {
       sample: entry2.sample,
       box: { x, y: middle2 - M4.sampleHeight / 2, width: M4.sampleWidth, height: M4.sampleHeight },
-      name: { x: x + M4.sampleWidth + M4.sampleGap, top: middle2 - TYPE_ROLES.edgeLabel.lineHeight / 2, text: entry2.name }
+      name: { x: x + M4.sampleWidth + M4.sampleGap, top: middle2 - TYPE_ROLES[NAME_ROLE].lineHeight / 2, text: entry2.name }
     };
   });
   return { section: column.section, heading: column.hasHeading ? { x, top: y, text: LEGEND_TITLES[column.section] } : null, rows };
 }
+var columnHeight = (column) => TYPE_ROLES.groupLabel.lineHeight + M4.headingGap + rowsHeight(column.entries.length);
+var TITLE_BLOCK = TYPE_ROLES.title.lineHeight + M4.titleGap;
+var PREFERRED_ASPECT = 1.6;
+var shapeDistance = (size) => Math.abs(Math.log(size.width / size.height / PREFERRED_ASPECT));
+var ALIGN_SHARE = { left: 0, center: 0.5, right: 1 };
+function flowColumns(columns, across2, limit) {
+  const spots = [];
+  let along4 = 0;
+  let band = 0;
+  let bandSize = 0;
+  let width = 0;
+  let height = 0;
+  for (const column of columns) {
+    const length = across2 ? column.width : columnHeight(column);
+    const depth = across2 ? columnHeight(column) : column.width;
+    if (along4 > 0 && along4 + length > limit) {
+      band += bandSize + (across2 ? M4.bandGap : M4.columnGap);
+      along4 = 0;
+      bandSize = 0;
+    }
+    spots.push(across2 ? { x: along4, y: band } : { x: band, y: along4 });
+    bandSize = Math.max(bandSize, depth);
+    along4 += length + (across2 ? M4.columnGap : M4.bandGap);
+    width = Math.max(width, across2 ? along4 - M4.columnGap : band + bandSize);
+    height = Math.max(height, across2 ? band + bandSize : along4 - M4.bandGap);
+  }
+  return { spots, width, height };
+}
 function withLegend(diagram, layout) {
-  if (diagram.showsLegend !== true) return layout;
+  if (diagram.legend === "off") return layout;
+  const align = diagram.legend ?? "center";
   const parts = legendParts(diagram);
   if (parts.length === 0) return layout;
   const margin = CANVAS_METRICS.padding;
   const columns = parts.flatMap((part) => columnsOf2(part.section, part.entries));
-  const widest11 = Math.max(...columns.map((column) => column.width));
-  const width = Math.max(layout.size.width - margin * 2, widest11);
-  const ruleY = layout.size.height - margin + M4.gap;
-  const titleTop = ruleY + M4.ruleGap;
-  let top = titleTop + TYPE_ROLES.title.lineHeight + M4.titleGap;
-  let x = margin;
-  let bandHeight = 0;
-  let right = margin;
-  const placed = [];
-  for (const column of columns) {
-    if (x > margin && x + column.width > margin + width) {
-      x = margin;
-      top += bandHeight + M4.bandGap;
-      bandHeight = 0;
-    }
-    placed.push(placeColumn(column, x, top));
-    bandHeight = Math.max(bandHeight, TYPE_ROLES.groupLabel.lineHeight + M4.headingGap + rowsHeight(column.entries.length));
-    right = Math.max(right, x + column.width);
-    x += column.width + M4.columnGap;
-  }
-  const bottom = top + bandHeight;
-  const canvasWidth = Math.ceil(Math.max(layout.size.width, right - margin + margin * 2));
+  const innerWidth2 = layout.size.width - margin * 2;
+  const innerHeight = layout.size.height - margin * 2;
+  const share = ALIGN_SHARE[align];
+  const under = flowColumns(columns, true, Math.max(innerWidth2, ...columns.map((column) => column.width)));
+  const underSize = { width: Math.max(layout.size.width, under.width + margin * 2), height: layout.size.height + M4.gap + M4.ruleGap + TITLE_BLOCK + under.height };
+  const fitsOneRow = flowColumns(columns, true, Number.POSITIVE_INFINITY).width <= innerWidth2;
+  const beside = flowColumns(columns, false, Math.max(innerHeight - TITLE_BLOCK, ...columns.map(columnHeight)));
+  const besideSize = { width: layout.size.width + M4.gap + M4.ruleGap + beside.width, height: Math.max(layout.size.height, TITLE_BLOCK + beside.height + margin * 2) };
+  const fitsColumn = besideSize.width <= Math.max(CANVAS_METRICS.targetWidth, underSize.width);
+  const onSide = !fitsOneRow && fitsColumn && shapeDistance(besideSize) < shapeDistance(underSize);
+  const block = onSide ? beside : under;
+  const size = { width: Math.ceil(onSide ? besideSize.width : underSize.width), height: Math.ceil(onSide ? besideSize.height : underSize.height) };
+  const ruleAt = (onSide ? layout.size.width : layout.size.height) - margin + M4.gap;
+  const left = onSide ? ruleAt + M4.ruleGap : margin + share * (size.width - margin * 2 - block.width);
+  const top = onSide ? margin + share * (size.height - margin * 2 - TITLE_BLOCK - block.height) : ruleAt + M4.ruleGap;
   const legend2 = {
-    rect: { x: margin, y: ruleY, width: right - margin, height: bottom - ruleY },
-    rule: { from: { x: margin, y: ruleY }, to: { x: canvasWidth - margin, y: ruleY } },
-    title: { x: margin, top: titleTop, text: LEGEND_TITLES.legend },
-    columns: placed
+    side: onSide ? "right" : "bottom",
+    rect: { x: left, y: top, width: block.width, height: TITLE_BLOCK + block.height },
+    rule: onSide ? { from: { x: ruleAt, y: margin }, to: { x: ruleAt, y: size.height - margin } } : { from: { x: margin, y: ruleAt }, to: { x: size.width - margin, y: ruleAt } },
+    title: { x: left, top, text: LEGEND_TITLES.legend },
+    columns: columns.map((column, index2) => {
+      const spot = block.spots[index2] ?? { x: 0, y: 0 };
+      return placeColumn(column, left + spot.x, top + TITLE_BLOCK + spot.y);
+    })
   };
-  return { ...layout, size: { width: canvasWidth, height: Math.ceil(bottom + margin) }, legend: legend2 };
+  return { ...layout, size, legend: legend2 };
 }
 
 // ../../packages/diagrams/src/layout/flow/stub-order.ts
@@ -42483,11 +42527,47 @@ function readLineRole(option2, report3) {
   report3.push(errorAt(DIAGNOSTIC_CODES.badOptionValue, `Unknown line role "${option2.value}"`, option2.valueToken, `${lead}${ROLES_SENTENCE} Leave role= off a line that is none of these.`));
   return void 0;
 }
-function readShowsLegend(option2, report3) {
-  if (option2 === void 0 || option2.value === "off") return false;
-  if (option2.value === "on") return true;
-  report3.push(errorAt(DIAGNOSTIC_CODES.badOptionValue, `Option "legend" takes on or off, found "${option2.value}"`, option2.valueToken, `Write ${SWITCH_VALUES.map((value) => `legend=${value}`).join(" or ")}.`));
-  return false;
+function readLegend(option2, report3) {
+  if (option2 === void 0 || option2.value === "on" || option2.value === "center") return null;
+  if (option2.value === "off" || option2.value === "left" || option2.value === "right") return option2.value;
+  const match = suggest(option2.value, LEGEND_VALUES);
+  const lead = match === null ? "" : `Did you mean legend=${match}? `;
+  report3.push(
+    errorAt(
+      DIAGNOSTIC_CODES.badOptionValue,
+      `Option "legend" takes ${joinWords([...LEGEND_VALUES], "or")}, found "${option2.value}"`,
+      option2.valueToken,
+      `${lead}legend=on draws it centred; left or right aligns it; off draws none.`
+    )
+  );
+  return null;
+}
+function readLegendParts(option2, report3) {
+  if (option2 === void 0) return null;
+  const tokens2 = [option2.valueToken, ...option2.moreTokens ?? []];
+  const chosen = /* @__PURE__ */ new Set();
+  for (const token of tokens2) {
+    const text5 = "text" in token ? token.text : "";
+    for (const word2 of text5.split(",").map((part) => part.trim()).filter((part) => part !== "")) {
+      const preset = LEGEND_PART_PRESETS[word2];
+      const section = LEGEND_SECTIONS.find((candidate2) => candidate2 === word2);
+      if (preset !== void 0) for (const part of preset) chosen.add(part);
+      else if (section !== void 0) chosen.add(section);
+      else {
+        const match = suggest(word2, LEGEND_PART_WORDS);
+        const lead = match === null ? "" : `Did you mean ${match}? `;
+        report3.push(
+          errorAt(
+            DIAGNOSTIC_CODES.badOptionValue,
+            `Option "legendparts" takes ${joinWords([...LEGEND_PART_WORDS], "or")}, found "${word2}"`,
+            token,
+            `${lead}List the parts with commas, such as legendparts=lines,boxes; basic is every part but the icons.`
+          )
+        );
+      }
+    }
+  }
+  return chosen.size === LEGEND_SECTIONS.length ? null : LEGEND_SECTIONS.filter((section) => chosen.has(section));
 }
 
 // ../../packages/diagrams/src/parse/stack-option.ts
@@ -42519,7 +42599,7 @@ function spanOf7(token) {
   return token?.kind === "string" ? { line: token.line, column: token.column, length: token.length } : null;
 }
 var EDGE_OPTIONS = ["icon", "role", ...LINE_MOTION_OPTIONS];
-var HEADER_OPTIONS4 = ["direction", "desc", "provider", "legend", "icons", ...HEADER_MOTION_OPTIONS];
+var HEADER_OPTIONS4 = ["direction", "desc", "provider", "legend", "legendparts", "icons", ...HEADER_MOTION_OPTIONS];
 var PLAIN_NODE_TYPES = /* @__PURE__ */ new Set(["decision", "terminal", "step"]);
 var ROLE_NODE_TYPES = /* @__PURE__ */ new Set(["service", "external"]);
 function resolveDirection(option2, state) {
@@ -42538,16 +42618,17 @@ function parseFlowHeader(line5, state) {
     state.title = title.text;
     cursor.next();
   }
-  const options3 = readOptions(cursor, HEADER_OPTIONS4, state.report);
+  const options3 = readOptions(cursor, HEADER_OPTIONS4, state.report, { lists: ["legendparts"] });
   for (const option2 of options3) {
     if (option2.key === "direction") resolveDirection(option2, state);
     else if (option2.key === "provider") state.provider = resolveProvider(option2, state);
     else if (option2.key === "desc") state.description = option2.value;
   }
   state.motion = readHeaderMotion(options3, state.report);
-  state.showsLegend = readShowsLegend(findOption(options3, "legend"), state.report);
+  state.legend = readLegend(findOption(options3, "legend"), state.report);
+  state.legendParts = readLegendParts(findOption(options3, "legendparts"), state.report);
   readIconMode(findOption(options3, "icons"), state);
-  rejectTrailing(cursor, state, 'The header is: flow "Title" direction=auto provider=aws animate=on numbered=on start=1 legend=on icons=auto desc="Plain-language summary"');
+  rejectTrailing(cursor, state, 'The header is: flow "Title" direction=auto provider=aws animate=on numbered=on start=1 legend=on legendparts=all icons=auto desc="Plain-language summary"');
 }
 function parseDescStatement(cursor, state, line5) {
   cursor.next();
@@ -42831,7 +42912,8 @@ function parseFlow(lines, report3) {
     direction: DEFAULT_DIRECTION,
     provider: null,
     motion: stillMotion(),
-    showsLegend: false,
+    legend: null,
+    legendParts: null,
     nodes: [],
     groups: [],
     overlays: [],
@@ -42861,7 +42943,8 @@ function parseFlow(lines, report3) {
     groups: state.groups,
     overlays: resolveOverlays(state),
     edges: resolveEdges(state),
-    ...state.showsLegend ? { showsLegend: true } : {}
+    ...state.legend === null ? {} : { legend: state.legend },
+    ...state.legendParts === null ? {} : { legendParts: state.legendParts }
   };
 }
 
@@ -43119,7 +43202,7 @@ function paintSample(sample2, box, theme) {
 function paintRow(row, theme) {
   return el("g", { "data-legend-row": row.sample?.kind ?? "more" }, [
     ...paintSample(row.sample, row.box, theme),
-    paintTextBlock({ x: row.name.x, top: row.name.top, lines: [row.name.text], role: "edgeLabel", color: theme.ink })
+    paintTextBlock({ x: row.name.x, top: row.name.top, lines: [row.name.text], role: LEGEND_NAME_ROLE, color: theme.ink })
   ]);
 }
 function paintLegend2(legend2, theme) {
@@ -76392,7 +76475,7 @@ var SourceSchema = external_exports.strictObject({
 }, { error: movedKeysError({ schemes: "A source's schemes is now scheme, which takes auto, light, dark, or light-and-dark" }) }).meta({ id: "Source", description: "One diagram generated from files of the repository and kept in step with them." });
 
 // ../../packages/diagrams/src/settings/schema.ts
-var SHARED_DEFAULT_OPTIONS = ["icons", "legend", "direction", "animate", "numbered", "theme"];
+var SHARED_DEFAULT_OPTIONS = ["icons", "legend", "legendparts", "direction", "animate", "numbered", "theme"];
 var optionKey = external_exports.string().regex(/^[a-z][a-z0-9-]*$/, "Write the header option as the header writes it, such as direction or layout").refine((key) => key !== "title", { message: "A title is the diagram's own; it has no default" });
 var optionValue = external_exports.union([external_exports.string().min(1).max(SETTINGS_FILE.maxValueLength), external_exports.number(), external_exports.boolean()]);
 var MOVED_DEFAULTS = {
@@ -76405,7 +76488,8 @@ function themeError(issue3) {
 }
 var DefaultsSchema = external_exports.strictObject({
   icons: external_exports.enum(ICON_MODES).optional().describe("icons= on every header that takes it: auto gives an item the icon its label names, off keeps items plain."),
-  legend: external_exports.enum(SWITCH_VALUES).optional().describe("legend= on every header that takes it: on draws the legend of what the picture uses, off (the default) draws none."),
+  legend: external_exports.enum(LEGEND_VALUES).optional().describe("legend= on every header that takes it: on (the default) draws the legend of what the picture uses, centred; left or right aligns it; off draws none."),
+  legendparts: external_exports.union([external_exports.enum(["all", "basic"]), external_exports.array(external_exports.enum(LEGEND_SECTIONS)).min(1).max(LEGEND_SECTIONS.length)]).optional().describe('legendparts= on every header that takes it: which parts the legend shows, "all", "basic" (every part but the icons), or a list such as ["lines", "boxes"].'),
   direction: external_exports.enum(DIRECTIONS).optional().describe("direction= on every header that takes this value."),
   animate: external_exports.enum(SWITCH_VALUES).optional().describe("animate= on every header that takes it: on moves dashes along every line."),
   numbered: external_exports.enum(SWITCH_VALUES).optional().describe("numbered= on every header that takes it: on numbers every line in the order written."),
@@ -76429,6 +76513,7 @@ var SettingsSchema = external_exports.strictObject({
 // ../../packages/diagrams/src/settings/apply-defaults.ts
 function written2(value) {
   if (typeof value === "boolean") return value ? "on" : "off";
+  if (Array.isArray(value)) return written2(value.join(","));
   const text5 = String(value);
   return /^[A-Za-z0-9_][A-Za-z0-9_.:-]*$/.test(text5) ? text5 : `"${text5.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
@@ -76480,7 +76565,7 @@ function applyDefaults(source, defaults) {
     const own3 = headerValue(header, key);
     if (own3 !== void 0) {
       const was = "text" in own3 ? own3.text : "";
-      if (!enforced.has(key) || was === written2(value)) continue;
+      if (!enforced.has(key) || meets2(key, was, written2(value))) continue;
       current2 = withValue(current2, header, own3, written2(value));
       errors = headerErrors(current2, header.line);
       notes.push(enforcedOver(key, was, written2(value), { line: header.line, column: own3.column, length: own3.length }));
@@ -76496,6 +76581,10 @@ function applyDefaults(source, defaults) {
     errors = after;
   }
   return { source: current2, notes };
+}
+function meets2(key, was, value) {
+  if (was === value) return true;
+  return key === "legend" && value === "on" && LEGEND_SHOWN_VALUES.includes(was);
 }
 function enforcedOver(key, was, value, at3) {
   return warningAt(
@@ -77639,7 +77728,7 @@ var SchemeChoiceSchema = external_exports.enum(SCHEME_CHOICES).default("both").d
 var DetailSchema = external_exports.enum(DETAIL_CHOICES).default("summary").describe("summary (the default), or full: the whole outline, and the source embedded in each SVG.");
 var SVG_CHOICES = ["auto", "always", "never"];
 var SvgChoiceSchema = external_exports.enum(SVG_CHOICES).default("auto").describe(
-  "auto (the default) returns the SVGs, but over MCP leaves them out when the answer would be too big for a client (picturesOmitted). always returns them at any size. never draws nothing, which is cheaper. The HTTP API treats auto as always."
+  "auto (the default): over MCP the SVG text stays out of the answer (picturesOmitted). always returns it. never draws nothing, cheapest. Checks run either way. The HTTP API treats auto as always."
 );
 var EmbedSourceSchema = external_exports.boolean().default(false).describe(
   "Write the source into each SVG so read_diagram can give it back. Set it when you save the SVG in a repository or publish it to edit later; anyone with the file or link can then read the source."
@@ -91142,7 +91231,7 @@ function markOf(cell2) {
 function findColumn(header, words2) {
   return header.findIndex((name2) => words2.includes(name2.trim().toLowerCase()));
 }
-function flowColumns(table) {
+function flowColumns2(table) {
   const source = findColumn(table.header, SOURCE_WORDS2);
   const target = findColumn(table.header, TARGET_WORDS);
   const value = findColumn(table.header, VALUE_WORDS);
@@ -91176,7 +91265,7 @@ function isShares(table, column) {
   return Math.abs(sum2 - 100) <= 1 || Math.abs(sum2 - 1) <= 0.01 || unit3 === "%" || SHARE_WORDS.test(table.header[column] ?? "");
 }
 function chooseChart(table) {
-  if (flowColumns(table) !== null) return { chart: "sankey", why: "The columns name a source, a target, and an amount, so each row is a flow." };
+  if (flowColumns2(table) !== null) return { chart: "sankey", why: "The columns name a source, a target, and an amount, so each row is a flow." };
   if (isMarks(table)) return { chart: "matrix", why: "Every cell after the first column is yes or no, so the table is a matrix." };
   const numeric = table.header.map((_, column) => isNumericColumn(table, column));
   const numbers = numeric.filter(Boolean).length;
@@ -91390,7 +91479,7 @@ function pageFlows(flows, size) {
   return { pages: out, left };
 }
 function writeSankey(table, title, report3) {
-  const columns = flowColumns(table);
+  const columns = flowColumns2(table);
   if (columns === null) {
     report3.add(DIAGNOSTIC_CODES.importNoShape, table.headerSpan, "The header does not name a source, a target, and a value column.", "Name the columns source, target, and value (or from, to, and amount).");
     return null;
@@ -91670,7 +91759,7 @@ function titleFor(table, chart) {
   }
   if (chart === "pie") return `${capital(measure)} by ${first.toLowerCase()}`;
   if (chart === "sankey") {
-    const source = cleanText(table.rows[0]?.[flowColumns(table)?.source ?? 0] ?? "", "");
+    const source = cleanText(table.rows[0]?.[flowColumns2(table)?.source ?? 0] ?? "", "");
     return GENERIC_MEASURES.includes(measure.toLowerCase()) ? source === "" ? "Flows" : `Flows from ${source}` : `Flow of ${measure.toLowerCase()}`;
   }
   if (chart === "treemap") return `${capital(measure)} by ${first.toLowerCase()}`;
@@ -100792,7 +100881,7 @@ async function drawDiagram(input2, ops = ENGINE_OPS) {
 var drawDiagramWorkflow = defineWorkflow({
   name: "draw_diagram",
   title: "Draw diagram",
-  description: 'Workflow. Checks, describes, and draws a diagram. With errors it returns each one with line, column, and a fix hint and draws nothing: fix the source and call again. When valid it returns the quality warnings (take the icon and group-type suggestions), an outline to check the meaning, the size, and the SVG for light, dark, or both (theme= on the header picks the colour theme). The pictures are most of an answer and you cannot see them: pass svg "never" to check, and draw only to save, show, or publish. Give viewUrl to the person, even after svg "never": the drawing lives in the link and nothing is saved on Plotwork; pngUrl and svgUrl download it; saveCommand, when given, saves it in a repository. A big drawing (about 30 nodes) loses its SVGs, dark first, and picturesOmitted says so; svg "always" forces them. Set embedSource true to save an SVG in a repository or publish one to edit later, so read_diagram gives the source back (anyone with the file can read it). detail "full" adds the whole outline. To change an existing diagram use edit_diagram, or read_diagram for a picture. Saves no file; never throws on bad source. Replaces the validate_diagram, outline_diagram and render_diagram calls.',
+  description: 'Workflow. Checks, describes, and draws a diagram. With errors it returns each one with line, column, and a fix hint and draws nothing: fix the source and call again. When valid it returns the quality warnings (take the icon and group-type suggestions), an outline to check the meaning, the size, and the SVG for light, dark, or both (theme= on the header picks the colour theme). You cannot see an SVG, so over MCP the answer carries none unless you pass svg "always" (picturesOmitted says so); svg "never" checks most cheaply. Give viewUrl to the person: the drawing lives in the link and nothing is saved on Plotwork; pngUrl and svgUrl download it; saveCommand, when given, saves it in a repository. Every check runs on the drawing either way. Set embedSource true to save an SVG in a repository or publish one to edit later, so read_diagram gives the source back (anyone with the file can read it). detail "full" adds the whole outline. To change an existing diagram use edit_diagram, or read_diagram for a picture. Saves no file; never throws on bad source. Replaces the validate_diagram, outline_diagram and render_diagram calls.',
   compact: {
     description: 'Checks diagram source and draws it in one call. Returns every error with line, column, and hint, and draws nothing until the source is valid, so fix each error and call again. svg "never" only checks and keeps the answer small; "always" returns the light and dark SVG to save.',
     inputs: { svg: "never: check only. always: return the SVGs.", schemes: "", embedSource: "Write the source into the SVG, for a file saved in a repository." }
@@ -103266,7 +103355,7 @@ function listedFor(tool, profile) {
 }
 
 // ../../packages/diagrams/src/tools/fit-answer.ts
-var ANSWER_BUDGET_CHARACTERS = 36e3;
+var ANSWER_BUDGET_CHARACTERS = 44e3;
 function isPictured(value) {
   if (typeof value !== "object" || value === null) return false;
   const renders = value.renders;
@@ -103298,6 +103387,47 @@ function fitAnswer(value, args, budget) {
     why: `The answer would have been over ${budget} characters, which is more than an AI client can be relied on to read in one piece.`
   };
   return { ...value, renders: kept4, picturesOmitted, next: omittedNext(schemes, characters, kept4.length, typeof value.viewUrl === "string") };
+}
+
+// ../../packages/diagrams/src/tools/pictures-aside.ts
+var PICTURES_META_KEY = "plotwork/renders";
+function picturesOf(value) {
+  const renders = typeof value === "object" && value !== null ? value.renders : void 0;
+  if (!Array.isArray(renders)) return [];
+  return renders.filter((item2) => typeof item2 === "object" && item2 !== null && typeof item2.scheme === "string" && typeof item2.svg === "string");
+}
+function wantsPictures(args) {
+  return typeof args === "object" && args !== null && args.svg === "always";
+}
+function asideSentence(answer) {
+  const ways = [
+    typeof answer["viewUrl"] === "string" ? "give the person viewUrl to look at it" : null,
+    typeof answer["saveCommand"] === "string" ? "run saveCommand to write the SVG files" : null,
+    typeof answer["svgUrl"] === "string" ? "svgUrl downloads it" : null
+  ].filter((way) => way !== null);
+  const lead = ways.length === 0 ? "" : ` ${ways.join(", ")};`;
+  return `The pictures are not in this answer, to keep it small:${lead} call again with svg "always" only when you need the SVG text here.`;
+}
+function setPicturesAside(value, args, budget) {
+  const pictures = picturesOf(value);
+  if (pictures.length === 0 || wantsPictures(args)) return { answer: value, pictures: [] };
+  const answer = value;
+  const characters = pictures.reduce((total, picture2) => total + picture2.svg.length, 0);
+  const before = typeof answer["next"] === "string" && answer["next"] !== "" ? `${answer["next"]} ` : "";
+  return {
+    answer: {
+      ...answer,
+      renders: [],
+      picturesOmitted: {
+        schemes: pictures.map((picture2) => picture2.scheme),
+        characters,
+        limit: budget,
+        why: 'Over MCP the pictures stay out of the answer unless svg is "always": a model cannot see an SVG, and its text is most of an answer. Every check ran on the drawing.'
+      },
+      next: `${before}${asideSentence(answer)}`
+    },
+    pictures
+  };
 }
 
 // ../../packages/diagrams/src/tools/view-link.ts
@@ -103440,6 +103570,8 @@ export {
   listedFor,
   ANSWER_BUDGET_CHARACTERS,
   fitAnswer,
+  PICTURES_META_KEY,
+  setPicturesAside,
   TOOLS,
   NO_LINKS_MESSAGE,
   runJob,

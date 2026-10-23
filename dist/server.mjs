@@ -12,6 +12,7 @@ import {
   GetPatternInputSchema,
   NEVER,
   NO_LINKS_MESSAGE,
+  PICTURES_META_KEY,
   RenderInputSchema,
   SyncMarkdownInputSchema,
   TOOLS,
@@ -46,6 +47,7 @@ import {
   record,
   runJob,
   safeParse,
+  setPicturesAside,
   settleToolInput,
   string,
   toJSONSchema,
@@ -54,7 +56,7 @@ import {
   unknown,
   url,
   useSelfhostIconArt
-} from "./chunks/chunk-CJE5KAJP.mjs";
+} from "./chunks/chunk-LRBXAQB4.mjs";
 import "./chunks/chunk-42BVPR2M.mjs";
 
 // ../../node_modules/.pnpm/@hono+node-server@2.1.3_hono@4.13.12/node_modules/@hono/node-server/dist/constants-BLSFu_RU.mjs
@@ -20252,6 +20254,34 @@ var BRAND = {
   /** The accent, as the design system's text-safe teal (see packages/ui/src/styles/tokens.css). */
   accent: "#0f766e"
 };
+var COMPANY = {
+  /** The name as written in running text. */
+  name: "Buun Group",
+  /** The company's own site, which the credit links to. */
+  website: "https://buungroup.com",
+  /** The company's mark, served by its own site so the credit never shows a stale copy of it. */
+  logoUrl: "https://buungroup.com/logo/logo.svg",
+  /** The registered name, for the privacy policy and every other legal page. */
+  legalName: "Buun Group Pty Ltd",
+  /** The Australian Business Number, as the company publishes it on its other products' legal pages. */
+  abn: "75 687 193 675",
+  /** Where the registered office is. The street is not published. */
+  registeredOffice: "Spring Mountain, QLD 4300, Australia",
+  /** The legal and privacy contact: where a request about personal data, an icon, or a mark goes. */
+  legalEmail: "legal@buungroup.com"
+};
+var CONTACT_EMAILS = {
+  /** Help with an account, keys, plans, billing, or a diagram that will not draw. */
+  support: "support@plotwork.dev",
+  /** A vulnerability in the service, the packages or the Action. */
+  security: "security@plotwork.dev",
+  /** Press, interviews and articles. */
+  press: "press@plotwork.dev",
+  /** A hosted diagram or link that should not be public, or a misuse of the service. */
+  abuse: "abuse@plotwork.dev",
+  /** Privacy requests, legal questions, and a company asking for its icon or mark to be taken down. */
+  legal: COMPANY.legalEmail
+};
 
 // ../../packages/ui/src/logo-motion.ts
 var MARK = {
@@ -20288,7 +20318,7 @@ var MARK_ICON = {
 // package.json
 var package_default = {
   name: "@buun/selfhost",
-  version: "0.1.0-beta.1",
+  version: "0.1.0-beta.2",
   private: true,
   description: "The self-hosted Plotwork engine: MCP over Streamable HTTP and a stateless REST surface in one Node server and container image. No accounts, no hosting, no network.",
   type: "module",
@@ -20328,7 +20358,7 @@ var SERVER_INSTRUCTIONS = [
   "When the diagram should come from a file the person has (SQL, Prisma, Drizzle, OpenAPI, GraphQL, Protocol Buffers, Terraform, Bicep, ARM, Pulumi, CloudFormation, CDK, Serverless, docker-compose, a Dockerfile, Kubernetes, Helm, Kustomize, nginx, Backstage, Structurizr, AsyncAPI, a GitHub Actions workflow, a GitLab CI/CD or Azure Pipelines pipeline, dbt, a JavaScript workspace, CSV or JSON data, a folder listing, or a git log), call import_source with its text and format get_diagram_syntax with topic import-formats says what each format reads.",
   "For a common architecture, call find_pattern first, then draw_from_pattern or get_pattern; when nothing fits, write the diagram with draw_diagram.",
   "Call get_diagram_syntax once with no kind to read the shared language, and again with kind set for its statements, limits, and example.",
-  'Write the source and call draw_diagram: it returns every error with line, column, and hint and draws nothing until the source is valid. Pass svg "never" to check a diagram, and draw only when the pictures will be saved or shown.',
+  'Write the source and call draw_diagram: it returns every error with line, column, and hint and draws nothing until the source is valid. The answer carries no SVG text unless you pass svg "always", which you need only to save the pictures yourself; svg "never" checks a diagram most cheaply.',
   "To change a diagram saved as a Plotwork SVG, call read_diagram with the text of the file as svg, change the source with edit_diagram or by hand, and draw it again. This server makes no network request, so read_diagram takes no url.",
   'For a finished look, label flow arrows with verbs ("reads", "publishes", "deploys to") so they draw icons, add role= (data, async, identity, private) to the lines that carry those, and give groups a type=; style in get_diagram_syntax says more.',
   "Use map_icons to choose icons for many names at once, and never invent an icon. To move Mermaid to Plotwork, call convert_mermaid, or sync_markdown with convertMermaid true for a whole Markdown file.",
@@ -20401,9 +20431,11 @@ async function callTool(tool, args, engine2, log2, budget) {
       done(ran.error.kind);
       return failureResult(ran.error);
     }
-    const value = fitted(ran.value, args, budget);
+    const aside = setPicturesAside(ran.value, args, budget);
+    const value = fitted(aside.answer, args, budget);
     done("ok");
-    return { content: [{ type: "text", text: JSON.stringify(value) }], structuredContent: value };
+    const meta = aside.pictures.length === 0 ? {} : { _meta: { [PICTURES_META_KEY]: aside.pictures } };
+    return { content: [{ type: "text", text: JSON.stringify(value) }], structuredContent: value, ...meta };
   } catch (error) {
     if (error instanceof EngineBusyError) {
       done("busy");
