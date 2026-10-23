@@ -1,0 +1,5 @@
+# Only the bundle and its licences go into the image; the Dockerfile copies them by name.
+*
+!dist/
+!LICENSE
+!THIRD-PARTY-NOTICES.md

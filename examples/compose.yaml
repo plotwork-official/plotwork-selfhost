@@ -1,0 +1,31 @@
+# The self-hosted Plotwork engine with Docker Compose. Put PLOTWORK_TOKEN in a .env file beside this one (never in this file),
+# for example with `echo "PLOTWORK_TOKEN=$(openssl rand -hex 32)" > .env`, then run: docker compose -f compose.yaml up -d --wait
+#
+# The server makes no outbound request on its own, and the `plotwork` network is internal as well, so the container has no route
+# out at all. Docker publishes no port from an internal network: the services that call Plotwork (an agent gateway, a reverse
+# proxy, a CI runner) join the `plotwork` network and reach it at http://plotwork:3106. The verify workflow of this repository runs
+# this file as it is, on a fresh machine, for every release.
+
+services:
+  plotwork:
+    image: ${PLOTWORK_IMAGE:-plotwork/selfhost:0.1.0-beta.1}
+    restart: unless-stopped
+    environment:
+      PLOTWORK_TOKEN: ${PLOTWORK_TOKEN:?Set PLOTWORK_TOKEN in .env, for example with openssl rand -hex 32}
+      PLOTWORK_LICENSE: ${PLOTWORK_LICENSE:-}
+      PLOTWORK_WORKERS: '2'
+      PLOTWORK_TIMEOUT_MS: '30000'
+    networks:
+      - plotwork
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    pids_limit: 64
+
+networks:
+  plotwork:
+    name: plotwork
+    internal: true

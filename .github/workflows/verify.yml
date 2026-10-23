@@ -1,0 +1,292 @@
+# Checks the published image the way a customer meets it: pulled anonymously from each registry onto a fresh GitHub runner, with
+# nothing built or cached, then verified and run in each of the ways the self-hosting guide describes.
+#
+#   job          where                                    what it proves
+#   plan         ubuntu                                   which version to check: the input, the release just published, or
+#                                                         the latest release
+#   docker       amd64 and arm64, Docker Hub and ghcr.io  the signature and attestation verify; the guide's `docker run`
+#                                                         starts, reports no network and no telemetry, refuses a request
+#                                                         without its token, answers MCP, and draws a diagram with an icon
+#                                                         from its own files; it runs as 65532 on a read-only filesystem
+#                                                         and carries its licences; the image is the runner's architecture
+#   compose      amd64                                    examples/compose.yaml starts healthy on its internal network,
+#                                                         answers a client on that network, and gives no route out
+#   kubernetes   amd64, a fresh kind cluster              examples/kubernetes.yaml rolls out with its security context and
+#                                                         probes, and answers through its Service
+#
+# It runs after every publish, every Monday (a registry, a base image or a runner can change under a release that has not), and by
+# hand for any version. It reads nothing secret and logs in to no registry.
+
+name: verify
+
+on:
+  workflow_run:
+    workflows: [publish]
+    types: [completed]
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The version to check, such as 0.1.0 or 0.2.0-beta.1. Empty checks the latest release.
+        type: string
+        default: ''
+
+permissions: {}
+
+concurrency:
+  group: verify-${{ github.event.workflow_run.head_branch || inputs.version || 'latest' }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Decide which version to check
+    # After a publish, only a publish that succeeded is checked.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.pick.outputs.version }}
+      hub: ${{ steps.pick.outputs.hub }}
+      ghcr: ${{ steps.pick.outputs.ghcr }}
+    steps:
+      - name: Pick the version
+        id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          FROM_RUN: ${{ github.event.workflow_run.head_branch }}
+          INPUT: ${{ inputs.version }}
+          HUB_IMAGE: ${{ vars.DOCKERHUB_IMAGE }}
+        run: |
+          set -euo pipefail
+          version="$INPUT"
+          if [ "$EVENT" = "workflow_run" ]; then version="${FROM_RUN#v}"; fi
+          if [ -z "$version" ]; then
+            tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+            version="${tag#v}"
+          fi
+          if ! [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::'$version' is not a version such as 0.1.0 or 0.2.0-beta.1."
+            exit 1
+          fi
+          {
+            echo "version=$version"
+            echo "hub=${HUB_IMAGE:-plotwork/selfhost}"
+            echo "ghcr=ghcr.io/${GITHUB_REPOSITORY,,}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Checking plotwork-selfhost $version." >> "$GITHUB_STEP_SUMMARY"
+
+  docker:
+    name: Docker on ${{ matrix.arch }} from ${{ matrix.registry }}
+    needs: plan
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+        registry: [docker-hub, ghcr]
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    env:
+      VERSION: ${{ needs.plan.outputs.version }}
+      IMAGE: ${{ matrix.registry == 'ghcr' && needs.plan.outputs.ghcr || needs.plan.outputs.hub }}
+    steps:
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Pull as a stranger, and verify the signature and the attestation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          docker logout >/dev/null 2>&1 || true
+          docker logout ghcr.io >/dev/null 2>&1 || true
+          docker pull "$IMAGE:$VERSION"
+          cosign verify "$IMAGE:$VERSION" \
+            --certificate-identity-regexp "^https://github.com/${GITHUB_REPOSITORY}/.github/workflows/publish.yml@" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com >/dev/null
+          gh attestation verify "oci://$IMAGE:$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null
+          arch=$(docker image inspect "$IMAGE:$VERSION" --format '{{.Architecture}}')
+          if [ "$arch" != "${{ matrix.arch }}" ]; then
+            echo "::error::The image pulled for ${{ matrix.arch }} is $arch."
+            exit 1
+          fi
+          echo "Pulled $IMAGE:$VERSION for $arch; signature and attestation verified."
+
+      - name: Run it as the guide does
+        run: |
+          set -euo pipefail
+          token=$(openssl rand -hex 32)
+          echo "TOKEN=$token" >> "$GITHUB_ENV"
+          echo "::add-mask::$token"
+          docker run -d --name plotwork \
+            --read-only --cap-drop ALL --security-opt no-new-privileges \
+            -p 127.0.0.1:3106:3106 \
+            -e PLOTWORK_TOKEN="$token" \
+            "$IMAGE:$VERSION"
+          for attempt in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:3106/healthz -o health.json; then break; fi
+            sleep 1
+          done
+          cat health.json
+          node -e '
+            const health = JSON.parse(require("fs").readFileSync("health.json", "utf8"))
+            const want = { status: "ok", version: process.env.VERSION, network: "none", telemetry: "off" }
+            for (const [key, value] of Object.entries(want)) if (health[key] !== value) { console.error(`healthz ${key} is ${health[key]}, not ${value}`); process.exit(1) }
+            if (health.license?.enforced !== false || typeof health.license?.terms !== "string") { console.error("healthz does not name the licence terms"); process.exit(1) }
+          '
+
+      - name: Refuse a request without the token, and one with the wrong token
+        run: |
+          set -euo pipefail
+          for case in none wrong; do
+            args=(-s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:3106/v1/diagrams/validate -H 'content-type: application/json' -d '{"source":"flow"}')
+            if [ "$case" = "wrong" ]; then args+=(-H "authorization: Bearer $(openssl rand -hex 32)"); fi
+            status=$(curl "${args[@]}")
+            if [ "$status" != "401" ]; then
+              echo "::error::A request with the $case token answered $status, not 401."
+              exit 1
+            fi
+          done
+
+      - name: Answer MCP and draw a diagram with an icon from its own files
+        run: |
+          set -euo pipefail
+          mcp() {
+            curl -sf -X POST http://127.0.0.1:3106/mcp -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' -d "$1"
+          }
+          mcp '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"verify","version":"1"}}}' | grep -q '"serverInfo"'
+          mcp '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | grep -q '"name":"draw_diagram"'
+          body='{"source":"flow \"Verify\"\nnode api service \"API\" icon=aws:lambda\nnode db database \"Database\"\napi -> db : \"reads\""}'
+          curl -sf -X POST http://127.0.0.1:3106/v1/diagrams/draw -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' -d "$body" -o draw.json
+          node -e '
+            const draw = JSON.parse(require("fs").readFileSync("draw.json", "utf8"))
+            if (draw.valid !== true) { console.error("The diagram did not draw:", JSON.stringify(draw.errors)); process.exit(1) }
+            if (!(draw.warnings ?? []).every((warning) => warning.code !== "W207")) { console.error("An icon could not be drawn from the image (W207)."); process.exit(1) }
+            if (!String(draw.renders?.[0]?.svg ?? "").startsWith("<svg")) { console.error("No SVG came back."); process.exit(1) }
+          '
+          echo "MCP answered and a diagram drew with its icon." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check how it runs and what it carries
+        run: |
+          set -euo pipefail
+          test "$(docker inspect plotwork --format '{{.Config.User}}')" = "65532:65532"
+          test "$(docker inspect plotwork --format '{{.HostConfig.ReadonlyRootfs}}')" = "true"
+          for attempt in $(seq 1 20); do
+            health=$(docker inspect plotwork --format '{{.State.Health.Status}}')
+            if [ "$health" = "healthy" ]; then break; fi
+            sleep 3
+          done
+          test "$health" = "healthy"
+          docker cp plotwork:/licenses ./licenses
+          test -s licenses/LICENSE
+          test -s licenses/THIRD-PARTY-NOTICES.md
+          head -1 licenses/LICENSE | grep -q 'Plotwork Self-Hosted Licence'
+          test "$(docker image inspect "$IMAGE:$VERSION" --format '{{index .Config.Labels "org.opencontainers.image.version"}}')" = "$VERSION"
+          docker logs plotwork 2>&1 | grep -q '"event":"license.none"'
+          if docker logs plotwork 2>&1 | grep -q '"level":"error"'; then
+            docker logs plotwork
+            echo "::error::The server logged an error."
+            exit 1
+          fi
+          docker rm -f plotwork >/dev/null
+
+  compose:
+    name: Compose, on an internal network
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.plan.outputs.version }}
+    steps:
+      # The example at the tag of the version checked, so a release is checked with the file it shipped.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: v${{ needs.plan.outputs.version }}
+          persist-credentials: false
+
+      - name: Start examples/compose.yaml as it is
+        working-directory: examples
+        run: |
+          set -euo pipefail
+          token=$(openssl rand -hex 32)
+          echo "::add-mask::$token"
+          echo "TOKEN=$token" >> "$GITHUB_ENV"
+          echo "PLOTWORK_TOKEN=$token" > .env
+          docker compose -f compose.yaml up -d --wait --wait-timeout 90
+          docker compose -f compose.yaml ps
+
+      # A client joins the internal network, as an agent gateway would. curl is pinned by digest.
+      - name: Answer a client on the network, and give it no route out
+        run: |
+          set -euo pipefail
+          curl_image=curlimages/curl:8.17.0@sha256:935d9100e9ba842cdb060de42472c7ca90cfe9a7c96e4dacb55e79e560b3ff40
+          client() { docker run --rm --network plotwork "$curl_image" "$@"; }
+          client -sf http://plotwork:3106/healthz | grep -q '"status":"ok"'
+          client -sf -X POST http://plotwork:3106/v1/diagrams/validate -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' -d '{"source":"flow \"Verify\"\nnode a service \"A\""}' | grep -q '"valid":true'
+          if client -s --max-time 8 -o /dev/null https://www.google.com; then
+            echo "::error::A container on the plotwork network reached the internet; the network is not internal."
+            exit 1
+          fi
+          echo "Compose: healthy, answers on its network, and the network has no route out." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Stop it
+        if: always()
+        working-directory: examples
+        run: docker compose -f compose.yaml down --volumes
+
+  kubernetes:
+    name: Kubernetes, on a fresh kind cluster
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: v${{ needs.plan.outputs.version }}
+          persist-credentials: false
+
+      - uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
+        with:
+          cluster_name: plotwork-verify
+
+      - name: Apply examples/kubernetes.yaml as it is
+        run: |
+          set -euo pipefail
+          kubectl apply -f examples/kubernetes.yaml
+          kubectl -n plotwork create secret generic plotwork --from-literal=token="$(openssl rand -hex 32)"
+          if ! kubectl -n plotwork rollout status deployment/plotwork --timeout=180s; then
+            kubectl -n plotwork describe pods
+            kubectl -n plotwork logs -l app.kubernetes.io/name=plotwork --tail=50 || true
+            exit 1
+          fi
+
+      - name: Answer through the Service, with the security context the file sets
+        run: |
+          set -euo pipefail
+          token=$(kubectl -n plotwork get secret plotwork -o jsonpath='{.data.token}' | base64 -d)
+          echo "::add-mask::$token"
+          kubectl -n plotwork port-forward service/plotwork 3106:3106 >/dev/null 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:3106/healthz -o health.json; then break; fi
+            sleep 1
+          done
+          grep -q '"status":"ok"' health.json
+          curl -sf -X POST http://127.0.0.1:3106/v1/diagrams/validate -H "authorization: Bearer $token" -H 'content-type: application/json' -d '{"source":"flow \"Verify\"\nnode a service \"A\""}' | grep -q '"valid":true'
+          test "$(kubectl -n plotwork get deployment plotwork -o jsonpath='{.status.readyReplicas}')" = "2"
+          test "$(kubectl -n plotwork get pods -l app.kubernetes.io/name=plotwork -o jsonpath='{.items[0].spec.containers[0].securityContext.readOnlyRootFilesystem}')" = "true"
+          echo "Kubernetes: both replicas ready on a fresh cluster, and answering through the Service." >> "$GITHUB_STEP_SUMMARY"

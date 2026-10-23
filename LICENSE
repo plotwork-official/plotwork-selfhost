@@ -1,0 +1,73 @@
+Plotwork Self-Hosted Licence 1.0
+
+Copyright (c) 2026 Buun Group Pty Ltd. All rights reserved, except as this licence grants.
+
+This licence covers the Plotwork self-hosted engine: the container image published as plotwork/selfhost and
+ghcr.io/plotwork-official/plotwork-selfhost, and the files it is built from (the "Software"). It is a licence of Buun Group
+Pty Ltd, a company registered in Queensland, Australia ("Plotwork", "we").
+
+1. Free use
+
+You may download, install, run, and copy the Software, and use it to draw diagrams, at no charge, if your use is one of these:
+
+  a. Personal use: an individual using the Software for themselves and not on behalf of an organisation.
+  b. Non-commercial use: by an individual, a registered charity or non-profit, or an educational or research institution, for
+     work that is not sold and not done on behalf of a commercial organisation.
+  c. Evaluation: any organisation trying the Software, for up to 30 days from its first installation, to decide whether to
+     license it. Evaluation does not include use in production.
+  d. Small organisations: an organisation that, together with its affiliates, has fewer than 250 employees and contractors and
+     less than USD 10 million in annual revenue or funding, using the Software for its own internal work.
+
+An "affiliate" is any entity that controls, is controlled by, or is under common control with the organisation.
+
+2. Commercial use
+
+Any other use by or for an organisation, including use in production by an organisation at or above either size in section
+1(d), needs a commercial licence from Plotwork. The commercial licence is the self-hosting add-on to a Plotwork Enterprise
+contract. Ask for one at https://plotwork.dev/enterprise. Its terms replace this licence for the organisation that holds it.
+
+An organisation that grows past a size in section 1(d) may keep using the Software under this licence for 90 days, to obtain
+a commercial licence or stop using it.
+
+3. Conditions
+
+  a. You may not offer the Software, or a service whose value comes mainly from it, to third parties as a hosted or managed
+     service, unless a written agreement with Plotwork allows it.
+  b. You may not remove or change any licence, copyright, or attribution notice in the Software, including the files under
+     /licenses in the image.
+  c. You may not sell, rent, or sublicense the Software. You may give a copy to someone else only with this licence, and their
+     use is then under its terms.
+  d. You may change the Software for your own use under section 1, but you may not distribute a changed version.
+
+4. Third-party components
+
+The Software contains components of other people, listed in THIRD-PARTY-NOTICES.md with their licences. Those licences, not
+this one, apply to those components, and nothing in this licence limits a right they give you.
+
+5. Licence key
+
+The Software reads a licence key from the environment variable PLOTWORK_LICENSE and reports whether one is set. It does not
+stop working without one. Running it without a key does not change what this licence allows.
+
+6. No warranty
+
+The Software is provided "as is", without warranty of any kind, express or implied, including merchantability, fitness for a
+particular purpose, and non-infringement, to the fullest extent the law allows. Nothing in this licence excludes a guarantee
+that cannot be excluded under the Australian Consumer Law or another law that applies to you.
+
+7. Limitation of liability
+
+To the fullest extent the law allows, Plotwork is not liable for any damages arising from the Software or this licence,
+including direct, indirect, incidental, special, consequential, and lost profits or data, even if told of the possibility.
+Where liability cannot be excluded, it is limited, where the law allows, to supplying the Software again.
+
+8. Termination
+
+If you break this licence, your rights under it end automatically. They are restored if you stop breaking it within 30 days
+of learning of the breach, unless you have been told of a breach before.
+
+9. Law
+
+This licence is governed by the law of Queensland, Australia, and the courts of Queensland have non-exclusive jurisdiction.
+
+Questions about this licence: legal@buungroup.com.

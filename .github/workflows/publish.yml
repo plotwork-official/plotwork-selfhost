@@ -1,0 +1,328 @@
+# Builds and publishes the self-hosted engine's container image when a tag `v<version>` is pushed.
+#
+# Nothing here compiles anything. dist/ is the bundle the private source repository built and tested, copied here by its
+# release workflow, which then pushes the tag that starts this one. This workflow checks the files against checksums.txt,
+# wraps them in distroless Node for linux/amd64 and linux/arm64, and pushes one image to two registries:
+#
+#   registry     image                                         tags
+#   Docker Hub   vars.DOCKERHUB_IMAGE (plotwork/selfhost)      <version>, and beta or latest; a stable x.y.z also x.y
+#   GitHub       ghcr.io/<this repository>                     the same
+#
+# Every image carries a build provenance attestation (SLSA, mode=max) and an SBOM from BuildKit, a signature made with
+# Sigstore's keyless signing (cosign, the identity is this workflow), and a GitHub artifact attestation, so anyone can check
+# that a digest was built here from a given commit:
+#
+#   cosign verify plotwork/selfhost:<version> \
+#     --certificate-identity-regexp '^https://github.com/plotwork-official/plotwork-selfhost/' \
+#     --certificate-oidc-issuer https://token.actions.githubusercontent.com
+#   gh attestation verify oci://plotwork/selfhost:<version> --repo plotwork-official/plotwork-selfhost
+#
+#   tag                image tags                         GitHub Release
+#   v0.1.0             0.1.0, 0.1, latest                 release, marked latest
+#   v0.2.0-beta.1      0.2.0-beta.1, beta                 prerelease
+#
+# A published version is never changed: a version that already has an image is refused rather than overwritten.
+#
+# One-time setup (the `docker-publish` environment, its DOCKERHUB_TOKEN secret, the DOCKERHUB_USERNAME and DOCKERHUB_IMAGE
+# variables, tag protection) is in the runbook of the source repository.
+
+name: publish
+
+on:
+  push:
+    tags: ['v*']
+
+permissions: {}
+
+concurrency:
+  group: publish-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Check the tag and the files
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.facts.outputs.version }}
+      channel: ${{ steps.facts.outputs.channel }}
+      prerelease: ${{ steps.facts.outputs.prerelease }}
+      minor: ${{ steps.facts.outputs.minor }}
+    steps:
+      # Full history, so the check below can ask whether the tagged commit is on the default branch.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check that the tag names this version
+        id: facts
+        env:
+          TAG: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::The tag '$TAG' must be v followed by a semantic version, such as v0.1.0 or v0.2.0-beta.1."
+            exit 1
+          fi
+          minor="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+          version=$(tr -d '[:space:]' < VERSION)
+          if [ "$version" != "${TAG#v}" ]; then
+            echo "::error::The tag is $TAG but VERSION says $version. Tag the commit that carries the version."
+            exit 1
+          fi
+          # A tag on a commit that is not on the default branch is a release nobody reviewed.
+          git fetch --no-tags origin "$DEFAULT_BRANCH"
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" "origin/$DEFAULT_BRANCH"; then
+            echo "::error::The tagged commit is not on $DEFAULT_BRANCH."
+            exit 1
+          fi
+          case "$version" in
+            *-*) channel=beta; prerelease=true ;;
+            *)   channel=latest; prerelease=false ;;
+          esac
+          {
+            echo "version=$version"
+            echo "channel=$channel"
+            echo "prerelease=$prerelease"
+            echo "minor=$minor"
+          } >> "$GITHUB_OUTPUT"
+          echo "plotwork-selfhost $version, channel $channel"
+
+      - name: Check the files against checksums.txt
+        run: sha256sum --check --strict checksums.txt
+
+      # The bundle contains other people's code and data, and the official vendor icons. Their licences and notices go into
+      # the image, under /licenses, so files without them stop here.
+      - name: Check the licence, the notices and the entries
+        run: |
+          set -euo pipefail
+          test -s LICENSE
+          test -s THIRD-PARTY-NOTICES.md
+          for entry in server.mjs engine-worker.mjs healthcheck.mjs; do test -s "dist/$entry"; done
+          test -d dist/icons
+
+  publish:
+    name: Build, push, sign and attest
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Create this environment under Settings, Environments, with the secret DOCKERHUB_TOKEN (a Docker Hub access token with
+    # read and write on the one repository) and, if a person should approve every publish, required reviewers.
+    environment: docker-publish
+    permissions:
+      contents: read
+      packages: write # pushing to ghcr.io
+      id-token: write # Sigstore keyless signing and the artifact attestation
+      attestations: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      hub: ${{ steps.names.outputs.hub }}
+      ghcr: ${{ steps.names.outputs.ghcr }}
+    env:
+      VERSION: ${{ needs.verify.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Name the images
+        id: names
+        env:
+          HUB_IMAGE: ${{ vars.DOCKERHUB_IMAGE }}
+          HUB_USER: ${{ vars.DOCKERHUB_USERNAME }}
+        run: |
+          set -euo pipefail
+          if [ -z "$HUB_USER" ]; then
+            echo "::error::Set the variable DOCKERHUB_USERNAME to the Docker Hub account that owns the image."
+            exit 1
+          fi
+          hub="${HUB_IMAGE:-plotwork/selfhost}"
+          ghcr="ghcr.io/${GITHUB_REPOSITORY,,}"
+          {
+            echo "hub=$hub"
+            echo "ghcr=$ghcr"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      # Releases are immutable: a version that already has an image in either registry is never pushed again.
+      - name: Refuse a version that is already published
+        env:
+          HUB: ${{ steps.names.outputs.hub }}
+          GHCR: ${{ steps.names.outputs.ghcr }}
+        run: |
+          set -euo pipefail
+          for image in "$HUB" "$GHCR"; do
+            if docker buildx imagetools inspect "$image:$VERSION" >/dev/null 2>&1; then
+              echo "::error::$image:$VERSION already exists. Releases are immutable. Bump the version and tag again."
+              exit 1
+            fi
+          done
+
+      - name: Choose the image tags
+        id: tags
+        env:
+          HUB: ${{ steps.names.outputs.hub }}
+          GHCR: ${{ steps.names.outputs.ghcr }}
+          CHANNEL: ${{ needs.verify.outputs.channel }}
+          PRERELEASE: ${{ needs.verify.outputs.prerelease }}
+          MINOR: ${{ needs.verify.outputs.minor }}
+        run: |
+          set -euo pipefail
+          names="$VERSION $CHANNEL"
+          if [ "$PRERELEASE" = "false" ]; then names="$names $MINOR"; fi
+          {
+            echo "list<<TAGS"
+            for image in "$HUB" "$GHCR"; do
+              for name in $names; do echo "$image:$name"; done
+            done
+            echo "TAGS"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.list }}
+          build-args: VERSION=${{ env.VERSION }}
+          labels: |
+            org.opencontainers.image.version=${{ env.VERSION }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          provenance: mode=max
+          sbom: true
+
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      # Keyless: the signature is bound to this workflow's identity through GitHub's OIDC token, with no key to keep.
+      - name: Sign the image in both registries
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          HUB: ${{ steps.names.outputs.hub }}
+          GHCR: ${{ steps.names.outputs.ghcr }}
+        run: |
+          set -euo pipefail
+          cosign sign --yes "$HUB@$DIGEST"
+          cosign sign --yes "$GHCR@$DIGEST"
+
+      - name: Attest the build on Docker Hub
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: index.docker.io/${{ steps.names.outputs.hub }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest the build on GitHub
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ steps.names.outputs.ghcr }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+  smoke:
+    name: Pull the published image and run it
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      DIGEST: ${{ needs.publish.outputs.digest }}
+    steps:
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      # Pulled by digest from each registry, verified, then run the way the self-hosting guide runs it.
+      - name: Verify the signatures and run the image
+        env:
+          HUB: ${{ needs.publish.outputs.hub }}
+          GHCR: ${{ needs.publish.outputs.ghcr }}
+        run: |
+          set -euo pipefail
+          identity="^https://github.com/${GITHUB_REPOSITORY}/.github/workflows/publish.yml@"
+          for image in "$HUB" "$GHCR"; do
+            cosign verify "$image@$DIGEST" --certificate-identity-regexp "$identity" --certificate-oidc-issuer https://token.actions.githubusercontent.com >/dev/null
+            echo "Verified the signature of $image@$DIGEST."
+          done
+          token=$(openssl rand -hex 32)
+          docker run -d --name plotwork --read-only --cap-drop ALL --security-opt no-new-privileges -p 127.0.0.1:3106:3106 -e PLOTWORK_TOKEN="$token" "$HUB@$DIGEST"
+          for attempt in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:3106/healthz -o health.json; then break; fi
+            sleep 1
+          done
+          cat health.json
+          node -e 'const health = JSON.parse(require("fs").readFileSync("health.json", "utf8")); if (health.status !== "ok" || health.network !== "none" || health.telemetry !== "off") { console.error("The image did not report ok, no network and no telemetry."); process.exit(1) }'
+          status=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:3106/v1/diagrams/validate -H 'content-type: application/json' -d '{"source":"flow"}')
+          if [ "$status" != "401" ]; then
+            echo "::error::A request without the token answered $status, not 401."
+            exit 1
+          fi
+          docker rm -f plotwork >/dev/null
+          echo "The published image starts, reports no network and no telemetry, and refuses a request without its token." >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    name: Cut the GitHub Release
+    needs: [verify, publish, smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.verify.outputs.version }}
+          PRERELEASE: ${{ needs.verify.outputs.prerelease }}
+          DIGEST: ${{ needs.publish.outputs.digest }}
+          HUB: ${{ needs.publish.outputs.hub }}
+          GHCR: ${{ needs.publish.outputs.ghcr }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::notice::$TAG already has a release."
+            exit 0
+          fi
+          {
+            echo "The self-hosted Plotwork engine $VERSION, for linux/amd64 and linux/arm64."
+            echo
+            echo '```sh'
+            echo "docker pull $HUB:$VERSION"
+            echo "docker pull $GHCR:$VERSION"
+            echo '```'
+            echo
+            echo "Digest: \`$DIGEST\`"
+            echo
+            echo "Signed with Sigstore and attested by this repository's publish workflow. To check a pull:"
+            echo
+            echo '```sh'
+            echo "gh attestation verify oci://$HUB:$VERSION --repo $GITHUB_REPOSITORY"
+            echo '```'
+            echo
+            echo "How to run it: https://docs.plotwork.dev/mcp/self-hosting"
+          } > notes.md
+          flags=(--title "plotwork-selfhost $VERSION" --notes-file notes.md --verify-tag)
+          if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); else flags+=(--latest); fi
+          gh release create "$TAG" "${flags[@]}" checksums.txt THIRD-PARTY-NOTICES.md LICENSE
