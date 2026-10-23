@@ -56,7 +56,7 @@ import {
   unknown,
   url,
   useSelfhostIconArt
-} from "./chunks/chunk-LRBXAQB4.mjs";
+} from "./chunks/chunk-L5G4VIQJ.mjs";
 import "./chunks/chunk-42BVPR2M.mjs";
 
 // ../../node_modules/.pnpm/@hono+node-server@2.1.3_hono@4.13.12/node_modules/@hono/node-server/dist/constants-BLSFu_RU.mjs
@@ -20318,7 +20318,7 @@ var MARK_ICON = {
 // package.json
 var package_default = {
   name: "@buun/selfhost",
-  version: "0.1.0-beta.2",
+  version: "0.1.0",
   private: true,
   description: "The self-hosted Plotwork engine: MCP over Streamable HTTP and a stateless REST surface in one Node server and container image. No accounts, no hosting, no network.",
   type: "module",

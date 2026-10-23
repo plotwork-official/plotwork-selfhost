@@ -101480,8 +101480,8 @@ var INTENTS = [
     draft: "flow",
     why: "A flow diagram with group types and provider icons draws a cloud architecture; call find_pattern first, since a checked pattern may already fit.",
     statements: ['flow "Title" direction=right', 'group <id> "Name" type=<group type> {', 'node <id> <type> "Label" icon=<provider:name>', 'a -> b : "label"'],
-    strong: ["aws", "azure", "gcp", "google cloud", "cloud architecture", "infrastructure", "vpc", "kubernetes", "serverless", "lambda", "network diagram", "deployment diagram", "availability zone", "subnet", "cloudflare"],
-    weak: ["cloud", "infra", "region", "load balancer", "cluster", "deployment", "network"]
+    strong: ["aws", "azure", "gcp", "google cloud", "cloud architecture", "infrastructure", "vpc", "kubernetes", "serverless", "lambda", "network diagram", "deployment diagram", "availability zone", "subnet", "cloudflare", "system architecture", "architecture diagram", "microservices", "service architecture"],
+    weak: ["cloud", "infra", "region", "load balancer", "cluster", "deployment", "network", "architecture", "service", "services", "queue", "cache", "redis", "platform", "talks to", "calls"]
   },
   {
     id: "sequence",
