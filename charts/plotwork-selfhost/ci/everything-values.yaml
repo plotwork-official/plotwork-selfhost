@@ -1,0 +1,79 @@
+# Every optional part on: an Ingress with TLS, autoscaling, a digest, a licence, more callers, and each server setting.
+image:
+  repository: registry.example.internal/plotwork/selfhost
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+imagePullSecrets:
+  - name: regcred
+auth:
+  existingSecret: plotwork
+  existingSecretKey: bearer
+license:
+  existingSecret: plotwork-license
+config:
+  workers: 4
+  queue: 64
+  timeoutMs: 60000
+  workerMemoryMb: 768
+  maxBodyBytes: 8388608
+  mcpResultLimit: 60000
+  tools: core
+  allowedOrigins:
+    - https://agents.example.internal
+    - https://portal.example.internal
+extraEnv:
+  - name: NODE_OPTIONS
+    value: --max-old-space-size=384
+podAnnotations:
+  example.internal/team: platform
+podLabels:
+  example.internal/cost-centre: diagrams
+resources:
+  requests:
+    cpu: "1"
+    memory: 1Gi
+  limits:
+    memory: 4Gi
+service:
+  annotations:
+    example.internal/scrape: "false"
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 8m
+  hosts:
+    - host: plotwork.example.internal
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: plotwork-tls
+      hosts:
+        - plotwork.example.internal
+networkPolicy:
+  ingress:
+    fromReleaseNamespace: false
+    namespaces:
+      - ingress-nginx
+      - agents
+    namespaceSelectors:
+      - matchLabels:
+          example.internal/plotwork-client: "true"
+    extraFrom:
+      - ipBlock:
+          cidr: 10.20.0.0/16
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetMemoryUtilizationPercentage: 80
+podDisruptionBudget:
+  minAvailable: 2
+priorityClassName: platform-critical
+nodeSelector:
+  kubernetes.io/os: linux
+tolerations:
+  - key: dedicated
+    operator: Equal
+    value: plotwork
+    effect: NoSchedule

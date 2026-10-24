@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "plotwork-selfhost values",
+  "type": "object",
+  "additionalProperties": false,
+  "definitions": {
+    "positiveInt": { "type": "integer", "minimum": 1 },
+    "nullableInt": { "type": ["integer", "null"] },
+    "stringMap": { "type": "object", "additionalProperties": { "type": "string" } },
+    "probe": { "type": "object" }
+  },
+  "properties": {
+    "global": { "type": "object" },
+    "nameOverride": { "type": "string", "maxLength": 63 },
+    "fullnameOverride": { "type": "string", "maxLength": 63 },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string" },
+        "digest": { "type": "string", "pattern": "^$|^sha256:[0-9a-f]{64}$" },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "items": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" } } }
+    },
+    "replicaCount": { "type": "integer", "minimum": 0 },
+    "auth": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "existingSecret": { "type": "string" },
+        "existingSecretKey": { "type": "string", "minLength": 1 },
+        "token": {
+          "type": "string",
+          "description": "At least 32 characters when set. Prefer existingSecret.",
+          "anyOf": [{ "maxLength": 0 }, { "minLength": 32 }]
+        },
+        "allowOpen": { "type": "boolean" }
+      }
+    },
+    "license": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "existingSecret": { "type": "string" },
+        "existingSecretKey": { "type": "string", "minLength": 1 }
+      }
+    },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "workers": { "type": ["integer", "null"], "minimum": 0, "maximum": 64 },
+        "queue": { "type": ["integer", "null"], "minimum": 0, "maximum": 10000 },
+        "timeoutMs": { "type": ["integer", "null"], "minimum": 1000, "maximum": 300000 },
+        "workerMemoryMb": { "type": ["integer", "null"], "minimum": 128, "maximum": 16384 },
+        "maxBodyBytes": { "type": ["integer", "null"], "minimum": 1024, "maximum": 67108864 },
+        "mcpResultLimit": { "type": ["integer", "null"], "minimum": 4000, "maximum": 10000000 },
+        "tools": { "type": "string", "enum": ["full", "core"] },
+        "allowedOrigins": { "type": "array", "items": { "type": "string", "pattern": "^https?://[^/\\s,]+$" } }
+      }
+    },
+    "extraEnv": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": { "name": { "type": "string", "not": { "enum": ["PLOTWORK_HOST", "PLOTWORK_PORT", "PLOTWORK_TOKEN", "PLOTWORK_ALLOW_OPEN"] } } }
+      }
+    },
+    "containerPort": { "type": "integer", "minimum": 1024, "maximum": 65535 },
+    "serviceAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create": { "type": "boolean" },
+        "name": { "type": "string" },
+        "annotations": { "$ref": "#/definitions/stringMap" },
+        "automountServiceAccountToken": { "type": "boolean" }
+      }
+    },
+    "podAnnotations": { "$ref": "#/definitions/stringMap" },
+    "podLabels": { "$ref": "#/definitions/stringMap" },
+    "podSecurityContext": { "type": "object" },
+    "securityContext": { "type": "object" },
+    "resources": { "type": "object" },
+    "startupProbe": { "$ref": "#/definitions/probe" },
+    "livenessProbe": { "$ref": "#/definitions/probe" },
+    "readinessProbe": { "$ref": "#/definitions/probe" },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "annotations": { "$ref": "#/definitions/stringMap" }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "className": { "type": "string" },
+        "annotations": { "$ref": "#/definitions/stringMap" },
+        "hosts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["host", "paths"],
+            "properties": {
+              "host": { "type": "string" },
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["path", "pathType"],
+                  "properties": {
+                    "path": { "type": "string" },
+                    "pathType": { "type": "string", "enum": ["Prefix", "Exact", "ImplementationSpecific"] }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tls": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": { "secretName": { "type": "string" }, "hosts": { "type": "array", "items": { "type": "string" } } }
+          }
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "ingress": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "fromReleaseNamespace": { "type": "boolean" },
+            "namespaces": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "namespaceSelectors": { "type": "array", "items": { "type": "object" } },
+            "extraFrom": { "type": "array", "items": { "type": "object" } }
+          }
+        }
+      }
+    },
+    "autoscaling": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minReplicas": { "$ref": "#/definitions/positiveInt" },
+        "maxReplicas": { "$ref": "#/definitions/positiveInt" },
+        "targetCPUUtilizationPercentage": { "type": ["integer", "null"], "minimum": 1 },
+        "targetMemoryUtilizationPercentage": { "type": ["integer", "null"], "minimum": 1 }
+      }
+    },
+    "podDisruptionBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "maxUnavailable": { "type": ["integer", "string"] },
+        "minAvailable": { "type": ["integer", "string", "null"] }
+      }
+    },
+    "topologySpreadConstraints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["maxSkew", "topologyKey", "whenUnsatisfiable"],
+        "properties": {
+          "maxSkew": { "$ref": "#/definitions/positiveInt" },
+          "topologyKey": { "type": "string" },
+          "whenUnsatisfiable": { "type": "string", "enum": ["ScheduleAnyway", "DoNotSchedule"] }
+        }
+      }
+    },
+    "strategy": { "type": "object" },
+    "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 },
+    "revisionHistoryLimit": { "type": "integer", "minimum": 0 },
+    "priorityClassName": { "type": "string" },
+    "nodeSelector": { "$ref": "#/definitions/stringMap" },
+    "tolerations": { "type": "array", "items": { "type": "object" } },
+    "affinity": { "type": "object" },
+    "tests": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "image": { "type": "string", "minLength": 1 } }
+    }
+  }
+}

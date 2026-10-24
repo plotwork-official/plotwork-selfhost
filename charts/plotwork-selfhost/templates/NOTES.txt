@@ -1,0 +1,48 @@
+{{- $name := include "plotwork.fullname" . -}}
+Plotwork self-hosted engine {{ include "plotwork.imageTag" . }} is installed as {{ $name }} in {{ .Release.Namespace }}.
+
+Inside the cluster:
+
+  MCP   http://{{ $name }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}/mcp
+  REST  http://{{ $name }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}/v1
+{{- if .Values.ingress.enabled }}
+{{- range .Values.ingress.hosts }}
+  Ingress  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}/mcp
+{{- end }}
+{{- end }}
+{{ if include "plotwork.tokenSecretName" . }}
+Every call to /mcp and /v1 needs the header Authorization: Bearer <token>. The token is in the Secret
+{{ include "plotwork.tokenSecretName" . }}, key {{ include "plotwork.tokenSecretKey" . }}.
+{{- else }}
+The server runs open, with no token (auth.allowOpen). Only the NetworkPolicy and your network stand in front of it.
+{{- end }}
+{{- if and (not .Values.auth.existingSecret) .Values.auth.token }}
+
+The token was given as auth.token, so it is in the release history. Move it to a Secret and set auth.existingSecret.
+{{- end }}
+{{- if .Values.networkPolicy.enabled }}
+
+The NetworkPolicy {{ $name }} denies all egress and lets in only:
+{{- if .Values.networkPolicy.ingress.fromReleaseNamespace }}
+  - pods in {{ .Release.Namespace }}
+{{- else }}
+  - pods in {{ .Release.Namespace }} labelled {{ include "plotwork.clientLabel" . }}: "true"
+{{- end }}
+{{- range .Values.networkPolicy.ingress.namespaces }}
+  - pods in the namespace {{ . }}
+{{- end }}
+{{- if or .Values.networkPolicy.ingress.namespaceSelectors .Values.networkPolicy.ingress.extraFrom }}
+  - the selectors and peers in networkPolicy.ingress
+{{- end }}
+{{- if .Values.ingress.enabled }}
+Add your ingress controller's namespace to networkPolicy.ingress.namespaces, or the Ingress cannot reach the pods.
+{{- end }}
+{{- end }}
+
+Check it:
+
+  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+  kubectl -n {{ .Release.Namespace }} port-forward service/{{ $name }} {{ .Values.service.port }}:{{ .Values.service.port }}
+  curl http://127.0.0.1:{{ .Values.service.port }}/healthz
+
+Settings, licence and agent setup: https://docs.plotwork.dev/mcp/self-hosting

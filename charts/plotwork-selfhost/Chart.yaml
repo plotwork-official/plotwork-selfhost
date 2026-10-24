@@ -1,0 +1,31 @@
+apiVersion: v2
+name: plotwork-selfhost
+description: The self-hosted Plotwork diagram engine. MCP over Streamable HTTP and the REST drawing routes in one non-root, read-only pod that makes no outbound request.
+type: application
+# version and appVersion are the version in apps/selfhost/package.json. release-please moves both with it (its generic
+# updater rewrites the two marked lines), the release packages the chart with that version, and a test
+# fails when they differ.
+version: 0.3.0-beta.1 # x-release-please-version
+appVersion: "0.3.0-beta.1" # x-release-please-version
+kubeVersion: ">=1.25.0-0"
+home: https://docs.plotwork.dev/mcp/self-hosting
+icon: https://plotwork.dev/brand/logo/plotwork-mark-on-light.svg
+sources:
+  - https://github.com/plotwork-official/plotwork-selfhost
+keywords:
+  - plotwork
+  - diagrams
+  - mcp
+  - self-hosted
+  - air-gapped
+maintainers:
+  - name: Buun Group
+    url: https://plotwork.dev
+annotations:
+  artifacthub.io/license: MIT
+  artifacthub.io/prerelease: "false"
+  artifacthub.io/links: |
+    - name: Self-hosting guide
+      url: https://docs.plotwork.dev/mcp/self-hosting
+    - name: Image
+      url: https://hub.docker.com/r/plotwork/selfhost

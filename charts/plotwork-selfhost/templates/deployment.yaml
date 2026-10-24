@@ -1,0 +1,168 @@
+{{- include "plotwork.validate" . }}
+{{- $tokenSecret := include "plotwork.tokenSecretName" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "plotwork.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "plotwork.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
+  {{- with .Values.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "plotwork.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- if and (not .Values.auth.existingSecret) .Values.auth.token }}
+        # A new token in the values replaces the pods, so none keeps the old one.
+        checksum/token: {{ .Values.auth.token | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "plotwork.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "plotwork.serviceAccountName" . }}
+      # The server never calls the Kubernetes API, so the pod gets no API token.
+      automountServiceAccountToken: false
+      # Kubernetes would otherwise set PLOTWORK_PORT=tcp://<address>:<port> for a Service named plotwork, over the server's
+      # own setting of that name, and the server would stop at start.
+      enableServiceLinks: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: plotwork
+          image: {{ include "plotwork.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.containerPort }}
+              protocol: TCP
+          env:
+            - name: PLOTWORK_HOST
+              value: "0.0.0.0"
+            - name: PLOTWORK_PORT
+              value: {{ .Values.containerPort | quote }}
+            {{- if $tokenSecret }}
+            - name: PLOTWORK_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $tokenSecret }}
+                  key: {{ include "plotwork.tokenSecretKey" . }}
+            {{- end }}
+            {{- if .Values.auth.allowOpen }}
+            - name: PLOTWORK_ALLOW_OPEN
+              value: "1"
+            {{- end }}
+            {{- with .Values.license.existingSecret }}
+            - name: PLOTWORK_LICENSE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: {{ $.Values.license.existingSecretKey }}
+            {{- end }}
+            {{- with .Values.config }}
+            {{- if not (kindIs "invalid" .workers) }}
+            - name: PLOTWORK_WORKERS
+              value: {{ .workers | int64 | quote }}
+            {{- end }}
+            {{- if not (kindIs "invalid" .queue) }}
+            - name: PLOTWORK_QUEUE
+              value: {{ .queue | int64 | quote }}
+            {{- end }}
+            {{- if not (kindIs "invalid" .timeoutMs) }}
+            - name: PLOTWORK_TIMEOUT_MS
+              value: {{ .timeoutMs | int64 | quote }}
+            {{- end }}
+            {{- if not (kindIs "invalid" .workerMemoryMb) }}
+            - name: PLOTWORK_WORKER_MEMORY_MB
+              value: {{ .workerMemoryMb | int64 | quote }}
+            {{- end }}
+            {{- if not (kindIs "invalid" .maxBodyBytes) }}
+            - name: PLOTWORK_MAX_BODY_BYTES
+              value: {{ .maxBodyBytes | int64 | quote }}
+            {{- end }}
+            {{- if not (kindIs "invalid" .mcpResultLimit) }}
+            - name: PLOTWORK_MCP_RESULT_LIMIT
+              value: {{ .mcpResultLimit | int64 | quote }}
+            {{- end }}
+            {{- with .tools }}
+            - name: PLOTWORK_TOOLS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .allowedOrigins }}
+            - name: PLOTWORK_ALLOWED_ORIGINS
+              value: {{ join "," . | quote }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.startupProbe }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- range . }}
+        - {{ toYaml (omit . "labelSelector") | nindent 10 | trim }}
+          labelSelector:
+            {{- if .labelSelector }}
+            {{- toYaml .labelSelector | nindent 12 }}
+            {{- else }}
+            matchLabels:
+              {{- include "plotwork.selectorLabels" $ | nindent 14 }}
+            {{- end }}
+        {{- end }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

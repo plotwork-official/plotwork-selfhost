@@ -1,0 +1,75 @@
+{{- $tokenSecret := include "plotwork.tokenSecretName" . }}
+{{- $url := printf "http://%s:%v" (include "plotwork.fullname" .) .Values.service.port }}
+# `helm test <release>` runs this pod. It calls the engine through its Service, as a client in the namespace would, and passes
+# when /healthz reports ok with no network and no telemetry, a request without the token is refused, and a diagram validates
+# with the token. It carries the client label, so the NetworkPolicy lets it through.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "plotwork.fullname" . }}-test
+  namespace: {{ .Release.Namespace }}
+  # Not the engine's selector labels, so the Service never sends a call to this pod.
+  labels:
+    helm.sh/chart: {{ include "plotwork.chart" . }}
+    app.kubernetes.io/name: {{ include "plotwork.name" . }}-test
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: test
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    {{ include "plotwork.clientLabel" . }}: "true"
+  annotations:
+    helm.sh/hook: test
+    # Kept after it ends, so `helm test --logs` can show what it saw; the next test run replaces it.
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  enableServiceLinks: false
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    runAsGroup: 65532
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: call
+      image: {{ .Values.tests.image | quote }}
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop:
+            - ALL
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          memory: 64Mi
+      env:
+        - name: URL
+          value: {{ $url | quote }}
+        {{- if $tokenSecret }}
+        - name: TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ $tokenSecret }}
+              key: {{ include "plotwork.tokenSecretKey" . }}
+        {{- end }}
+      command:
+        - /bin/sh
+        - -ec
+        - |
+          health=$(curl -sf --retry 10 --retry-all-errors --retry-delay 2 "$URL/healthz")
+          echo "$health"
+          echo "$health" | grep -q '"status":"ok"'
+          echo "$health" | grep -q '"network":"none"'
+          echo "$health" | grep -q '"telemetry":"off"'
+          body='{"source":"flow \"Helm test\"\nnode a service \"A\""}'
+          if [ -n "${TOKEN:-}" ]; then
+            status=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$URL/v1/diagrams/validate" -H 'content-type: application/json' -d "$body")
+            [ "$status" = "401" ] || { echo "A request without the token answered $status, not 401."; exit 1; }
+            curl -sf -X POST "$URL/v1/diagrams/validate" -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' -d "$body" | grep -q '"valid":true'
+          else
+            curl -sf -X POST "$URL/v1/diagrams/validate" -H 'content-type: application/json' -d "$body" | grep -q '"valid":true'
+          fi
+          echo "The engine answered through its Service."

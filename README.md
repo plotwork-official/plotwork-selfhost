@@ -8,7 +8,7 @@ The Plotwork diagram engine as one container, for a company whose diagram text m
 |---|---|
 | Where is the image? | `plotwork/selfhost` on Docker Hub and `ghcr.io/plotwork-official/plotwork-selfhost`, the same digest in both |
 | Which platforms? | `linux/amd64` and `linux/arm64` |
-| Which tag do I use? | A version such as `0.2.0` in production. `latest` follows stable releases, `beta` the previews |
+| Which tag do I use? | A version such as `0.3.0-beta.1` in production. `latest` follows stable releases, `beta` the previews |
 | What is in it? | Distroless Node 24 and the engine's bundle, nothing else: no shell, no package manager |
 | How do I check it? | Every image is signed with Sigstore and carries build provenance and an SBOM. See [Verify the image](#verify-the-image) |
 | Is it free? | For individuals, non-commercial use, a 30 day evaluation, and organisations under 250 people and USD 10 million a year. Larger organisations need a commercial licence. See [Licence](#licence) |
@@ -29,7 +29,7 @@ docker run -d --name plotwork \
   --read-only --cap-drop ALL --security-opt no-new-privileges \
   -p 127.0.0.1:3106:3106 \
   -e PLOTWORK_TOKEN \
-  plotwork/selfhost:0.2.0
+  plotwork/selfhost:0.3.0-beta.1
 ```
 
 Check it, then point an agent at `http://<host>:3106/mcp` with the header `Authorization: Bearer <token>`:
@@ -40,23 +40,37 @@ curl -s http://127.0.0.1:3106/healthz
 
 Ready-made files for [Compose](./examples/compose.yaml) (an internal network with no route out) and [Kubernetes](./examples/kubernetes.yaml) (non-root, read-only, no egress) are in `examples/`. The [self-hosting guide](https://docs.plotwork.dev/mcp/self-hosting) covers every setting and how to connect each agent.
 
+## Run it with Helm
+
+The [chart](./charts/plotwork-selfhost) is released with each image, at the same version, signed the same way:
+
+```sh
+kubectl create namespace plotwork
+kubectl -n plotwork create secret generic plotwork --from-literal=token="$(openssl rand -hex 32)"
+helm install plotwork oci://ghcr.io/plotwork-official/charts/plotwork-selfhost \
+  --version 0.3.0-beta.1 --namespace plotwork --set auth.existingSecret=plotwork
+helm test plotwork -n plotwork
+```
+
+It runs two non-root, read-only replicas with no API token, a NetworkPolicy with no egress, and a PodDisruptionBudget. Its [README](./charts/plotwork-selfhost/README.md) lists every value.
+
 ## Verify the image
 
 Each image was built by [the publish workflow](./.github/workflows/publish.yml) of this repository, from the files in it, which match [checksums.txt](./checksums.txt). Check a pull before you push it into your own registry:
 
 ```sh
-cosign verify plotwork/selfhost:0.2.0 \
+cosign verify plotwork/selfhost:0.3.0-beta.1 \
   --certificate-identity-regexp '^https://github.com/plotwork-official/plotwork-selfhost/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
-gh attestation verify oci://plotwork/selfhost:0.2.0 --repo plotwork-official/plotwork-selfhost
+gh attestation verify oci://plotwork/selfhost:0.3.0-beta.1 --repo plotwork-official/plotwork-selfhost
 ```
 
 The build provenance and the SBOM are in the image index:
 
 ```sh
-docker buildx imagetools inspect plotwork/selfhost:0.2.0 --format '{{ json .Provenance }}'
-docker buildx imagetools inspect plotwork/selfhost:0.2.0 --format '{{ json .SBOM }}'
+docker buildx imagetools inspect plotwork/selfhost:0.3.0-beta.1 --format '{{ json .Provenance }}'
+docker buildx imagetools inspect plotwork/selfhost:0.3.0-beta.1 --format '{{ json .SBOM }}'
 ```
 
 ## Licence
@@ -75,7 +89,7 @@ The image works the same with or without a licence key. Set the key you are give
 
 ## Tested on a fresh machine
 
-[The verify workflow](./.github/workflows/verify.yml) pulls each release anonymously, from both registries, onto fresh GitHub runners for `linux/amd64` and `linux/arm64`, after every publish and every Monday. It checks the signature and the attestation, runs the image as above, and expects it to report no network and no telemetry, refuse a request without its token, answer MCP, draw a diagram with an icon from its own files, run as user 65532 on a read-only filesystem, and carry its licences. It also starts `examples/compose.yaml` and proves its network has no route out, and applies `examples/kubernetes.yaml` to a fresh kind cluster.
+[The verify workflow](./.github/workflows/verify.yml) pulls each release anonymously, from both registries, onto fresh GitHub runners for `linux/amd64` and `linux/arm64`, after every publish and every Monday. It checks the signature and the attestation, runs the image as above, and expects it to report no network and no telemetry, refuse a request without its token, answer MCP, draw a diagram with an icon from its own files, run as user 65532 on a read-only filesystem, and carry its licences. It also starts `examples/compose.yaml` and proves its network has no route out, applies `examples/kubernetes.yaml` to a fresh kind cluster, and installs the signed Helm chart on another and runs its test.
 
 ## What this repository holds
 
@@ -84,7 +98,8 @@ The image works the same with or without a licence key. Set the key you are give
 | `dist/` | The engine's bundle: the server, the worker, the health check, and the icon art |
 | `Dockerfile` | Copies `dist/` and the licences into distroless Node 24, pinned by digest |
 | `examples/` | `compose.yaml` and `kubernetes.yaml`, as the verify workflow runs them |
-| `.github/workflows/` | `publish.yml` builds, signs and publishes a release; `verify.yml` tests what was published |
+| `charts/plotwork-selfhost/` | The Helm chart, MIT licensed, pushed to `oci://ghcr.io/plotwork-official/charts/plotwork-selfhost` with each release |
+| `.github/workflows/` | `publish.yml` builds, signs and publishes a release and its chart; `verify.yml` tests what was published |
 | `LICENSE`, `THIRD-PARTY-NOTICES.md` | The Plotwork Self-Hosted Licence, and every component in the bundle with its licence text. Both are in the image under `/licenses` |
 | `checksums.txt`, `VERSION` | The SHA-256 of every file, and the version they are |
 

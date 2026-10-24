@@ -1,0 +1,222 @@
+# Values of the plotwork-selfhost chart. Every key is described in README.md and checked by values.schema.json, which refuses
+# a key it does not know, so a typo stops the install instead of being ignored.
+#
+# The one value an install must give is the token: `auth.existingSecret` (recommended), `auth.token`, or, where the network
+# itself is the control, `auth.allowOpen: true`. Without one of them the chart refuses to render.
+
+# -- Overrides the chart name in resource names and labels.
+nameOverride: ""
+# -- Overrides the full resource name. By default it is the release name when that is `plotwork` or holds the chart name, and
+# `<release>-plotwork-selfhost` otherwise.
+fullnameOverride: ""
+
+image:
+  # -- The image. Push it into your own registry and point this there, so nodes pull from inside your network.
+  repository: plotwork/selfhost
+  # -- The tag. Empty means the chart's appVersion, the engine version this chart was released with.
+  tag: ""
+  # -- A digest, `sha256:` and 64 hex characters. When set it is used instead of the tag, so the pod runs exactly the image you verified.
+  digest: ""
+  pullPolicy: IfNotPresent
+
+# -- Secrets for a private registry, as a list of names: `[{name: regcred}]`.
+imagePullSecrets: []
+
+# -- Pods to run. Ignored when `autoscaling.enabled` is true.
+replicaCount: 2
+
+auth:
+  # -- The name of an existing Secret that holds the bearer token (`PLOTWORK_TOKEN`, at least 32 characters). Create it with
+  # `kubectl create secret generic plotwork --from-literal=token="$(openssl rand -hex 32)"`.
+  existingSecret: ""
+  # -- The key of the token in `existingSecret`.
+  existingSecretKey: token
+  # -- The token itself, written into a Secret the chart creates. It then sits in the release history and in your values
+  # files, so prefer `existingSecret`. Ignored when `existingSecret` is set.
+  token: ""
+  # -- Serves without a token (`PLOTWORK_ALLOW_OPEN=1`). Only where the network policy and the network around the cluster
+  # are the control.
+  allowOpen: false
+
+license:
+  # -- The name of an existing Secret that holds your commercial licence key (`PLOTWORK_LICENSE`). Shown in `/healthz` as a
+  # fingerprint; never enforced.
+  existingSecret: ""
+  # -- The key of the licence in `existingSecret`.
+  existingSecretKey: license
+
+# The server's settings. Each is an environment variable the server reads once at start; a value it cannot use stops the
+# start with a message that names it. Empty or null leaves the server's default.
+config:
+  # -- Worker threads that run the engine (`PLOTWORK_WORKERS`). One layout uses one thread for up to a second. Keep it at
+  # or under the CPU the pod is given.
+  workers: 2
+  # -- Jobs that may wait for a worker before more are refused with 503 `engine.busy` (`PLOTWORK_QUEUE`).
+  queue: 32
+  # -- The deadline of one job in milliseconds, waiting included (`PLOTWORK_TIMEOUT_MS`).
+  timeoutMs: 30000
+  # -- The heap limit of each worker in megabytes (`PLOTWORK_WORKER_MEMORY_MB`). Keep `workers` times this under the
+  # memory limit.
+  workerMemoryMb: 512
+  # -- The largest request body in bytes (`PLOTWORK_MAX_BODY_BYTES`). Null leaves the server's 4 MiB.
+  maxBodyBytes: null
+  # -- Characters of an MCP drawing answer before its pictures are left out (`PLOTWORK_MCP_RESULT_LIMIT`). Null leaves the
+  # server's default.
+  mcpResultLimit: null
+  # -- `full` lists every tool on `/mcp`; `core` lists the eight workflow tools with short descriptions, for a model with a
+  # small context (`PLOTWORK_TOOLS`).
+  tools: full
+  # -- Browser origins allowed to call (`PLOTWORK_ALLOWED_ORIGINS`). A request with any other `Origin` header is refused.
+  allowedOrigins: []
+
+# -- More environment variables for the container, as Kubernetes `env` entries.
+extraEnv: []
+
+# -- The port the server listens on inside the pod (`PLOTWORK_PORT`).
+containerPort: 3106
+
+serviceAccount:
+  # -- Creates a ServiceAccount for the pods. The server never calls the Kubernetes API.
+  create: true
+  # -- The name to use. Empty means the full name when `create` is true, and `default` otherwise.
+  name: ""
+  annotations: {}
+  # -- Mounts the account's API token. The server never uses it, so it stays off.
+  automountServiceAccountToken: false
+
+# -- Annotations on each pod.
+podAnnotations: {}
+# -- Labels on each pod, beside the chart's own.
+podLabels: {}
+
+# -- The pod's security context. The image's user is 65532 and needs no writable path.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- The container's security context.
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  allowPrivilegeEscalation: false
+  privileged: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Requests and limits. About 250 MB at rest with two workers; each worker's heap is capped by `config.workerMemoryMb`.
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    memory: 1Gi
+
+# -- Probes on `/healthz`, which answers without the token and does no engine work.
+startupProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  periodSeconds: 2
+  failureThreshold: 30
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  periodSeconds: 30
+  timeoutSeconds: 5
+  failureThreshold: 3
+readinessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+service:
+  # -- The Service type. ClusterIP keeps the engine inside the cluster; put an ingress or a mesh in front for TLS.
+  type: ClusterIP
+  port: 3106
+  annotations: {}
+
+ingress:
+  # -- Creates an Ingress. The server speaks plain HTTP, so terminate TLS here or in your mesh.
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: plotwork.example.internal
+      paths:
+        - path: /
+          pathType: Prefix
+  # -- TLS entries, as `[{secretName: plotwork-tls, hosts: [plotwork.example.internal]}]`.
+  tls: []
+
+networkPolicy:
+  # -- Creates a NetworkPolicy that denies every egress and allows ingress only from the peers below. The server makes no
+  # outbound request, so it needs no egress, not even DNS. It takes effect only where the network plugin enforces policies.
+  enabled: true
+  ingress:
+    # -- Allows every pod in the release's namespace.
+    fromReleaseNamespace: true
+    # -- Namespaces whose pods may call, by name, such as the namespace of your ingress controller or agent gateway.
+    namespaces: []
+    # -- More namespace label selectors whose pods may call, as `[{matchLabels: {team: platform}}]`.
+    namespaceSelectors: []
+    # -- More `from` peers, as NetworkPolicy peers (an `ipBlock`, or a namespace and pod selector together).
+    extraFrom: []
+  # Pods in the release's namespace labelled `<full name>-client: "true"` may always call. The chart's test pod carries it.
+
+autoscaling:
+  # -- Creates a HorizontalPodAutoscaler and leaves `replicas` to it.
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+  # -- A memory target in percent, or null for none.
+  targetMemoryUtilizationPercentage: null
+
+podDisruptionBudget:
+  # -- Creates a PodDisruptionBudget, so a node drain keeps the engine answering.
+  enabled: true
+  # -- Pods a disruption may take at once. Ignored when `minAvailable` is set.
+  maxUnavailable: 1
+  # -- Pods that must stay, as a number or a percentage. Null uses `maxUnavailable`.
+  minAvailable: null
+
+# -- Spreads the pods across nodes when it can (ScheduleAnyway), and across zones when the nodes carry the zone label.
+# The chart fills in each constraint's label selector. An empty list turns spreading off.
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+
+# -- How a new version replaces the old one. With these values a rollout never drops below the replica count.
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 0
+    maxSurge: 1
+
+# -- Seconds a stopping pod has to finish the jobs it holds. Keep it above `config.timeoutMs`.
+terminationGracePeriodSeconds: 40
+revisionHistoryLimit: 5
+priorityClassName: ""
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+tests:
+  # -- The image `helm test` runs to call the engine through its Service. It needs `sh` and `curl`; pinned by digest.
+  image: curlimages/curl:8.17.0@sha256:935d9100e9ba842cdb060de42472c7ca90cfe9a7c96e4dacb55e79e560b3ff40

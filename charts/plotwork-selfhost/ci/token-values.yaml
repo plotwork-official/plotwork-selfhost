@@ -1,0 +1,7 @@
+# The token given in the values, so the chart makes the Secret. A test value, used by nothing real.
+auth:
+  token: ci-only-token-not-a-secret-0123456789abcdef
+replicaCount: 1
+podDisruptionBudget:
+  enabled: true
+  maxUnavailable: 1

@@ -1,0 +1,10 @@
+# No token, where the network is the control; no NetworkPolicy, PodDisruptionBudget, ServiceAccount or spreading.
+auth:
+  allowOpen: true
+networkPolicy:
+  enabled: false
+podDisruptionBudget:
+  enabled: false
+serviceAccount:
+  create: false
+topologySpreadConstraints: []

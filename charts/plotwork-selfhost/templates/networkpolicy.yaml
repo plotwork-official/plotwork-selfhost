@@ -1,0 +1,44 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $ingress := .Values.networkPolicy.ingress }}
+# The server makes no outbound request, so the pods get no egress at all, not even DNS. Ingress reaches the server's port
+# only, from the peers the values name and from pods labelled {{ include "plotwork.clientLabel" . }}: "true" in this
+# namespace. An ingress controller or agent gateway in another namespace must be listed in networkPolicy.ingress.namespaces.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "plotwork.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "plotwork.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "plotwork.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  egress: []
+  ingress:
+    - ports:
+        - port: http
+          protocol: TCP
+      from:
+        - podSelector:
+            matchLabels:
+              {{ include "plotwork.clientLabel" . }}: "true"
+        {{- if $ingress.fromReleaseNamespace }}
+        - podSelector: {}
+        {{- end }}
+        {{- range $ingress.namespaces }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . | quote }}
+        {{- end }}
+        {{- range $ingress.namespaceSelectors }}
+        - namespaceSelector:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+        {{- with $ingress.extraFrom }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+{{- end }}
