@@ -56,7 +56,7 @@ import {
   unknown,
   url,
   useSelfhostIconArt
-} from "./chunks/chunk-L5G4VIQJ.mjs";
+} from "./chunks/chunk-VP45Y2SR.mjs";
 import "./chunks/chunk-42BVPR2M.mjs";
 
 // ../../node_modules/.pnpm/@hono+node-server@2.1.3_hono@4.13.12/node_modules/@hono/node-server/dist/constants-BLSFu_RU.mjs
@@ -20318,7 +20318,7 @@ var MARK_ICON = {
 // package.json
 var package_default = {
   name: "@buun/selfhost",
-  version: "0.1.0",
+  version: "0.2.0-beta.1",
   private: true,
   description: "The self-hosted Plotwork engine: MCP over Streamable HTTP and a stateless REST surface in one Node server and container image. No accounts, no hosting, no network.",
   type: "module",
@@ -20335,7 +20335,7 @@ var package_default = {
     "@hono/node-server": "2.1.3",
     "@modelcontextprotocol/server": "2.3.1",
     hono: "4.13.12",
-    zod: "4.6.5"
+    zod: "4.6.6"
   },
   devDependencies: {
     "@types/node": "22.20.4",
@@ -20355,7 +20355,7 @@ var SERVER_INSTRUCTIONS = [
   `Draws ${joinWords(kindNouns(), "and")} diagrams from a small line-oriented text language.`,
   "Prefer the workflow tools: each does the work of several single tools in one call.",
   "When you are unsure which kind of diagram fits, call suggest_diagram; for a whole document, call plan_document_diagrams.",
-  "When the diagram should come from a file the person has (SQL, Prisma, Drizzle, OpenAPI, GraphQL, Protocol Buffers, Terraform, Bicep, ARM, Pulumi, CloudFormation, CDK, Serverless, docker-compose, a Dockerfile, Kubernetes, Helm, Kustomize, nginx, Backstage, Structurizr, AsyncAPI, a GitHub Actions workflow, a GitLab CI/CD or Azure Pipelines pipeline, dbt, a JavaScript workspace, CSV or JSON data, a folder listing, or a git log), call import_source with its text and format get_diagram_syntax with topic import-formats says what each format reads.",
+  "When the diagram should come from a file the person has (SQL, Prisma, Drizzle, OpenAPI, GraphQL, Protocol Buffers, Terraform, Bicep, ARM, Pulumi, CloudFormation, CDK, Serverless, docker-compose, a Dockerfile, Kubernetes, Helm, Kustomize, nginx, Backstage, Structurizr, AsyncAPI, a GitHub Actions workflow, a GitLab CI/CD or Azure Pipelines pipeline, dbt, a JavaScript workspace, a draw.io diagram, CSV or JSON data, a folder listing, or a git log), call import_source with its text and format get_diagram_syntax with topic import-formats says what each format reads.",
   "For a common architecture, call find_pattern first, then draw_from_pattern or get_pattern; when nothing fits, write the diagram with draw_diagram.",
   "Call get_diagram_syntax once with no kind to read the shared language, and again with kind set for its statements, limits, and example.",
   'Write the source and call draw_diagram: it returns every error with line, column, and hint and draws nothing until the source is valid. The answer carries no SVG text unless you pass svg "always", which you need only to save the pictures yourself; svg "never" checks a diagram most cheaply.',

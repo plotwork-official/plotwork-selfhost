@@ -1,6 +1,6 @@
 # Third-party notices
 
-plotwork-selfhost 0.1.0 is licensed under the Plotwork Self-Hosted licence, in the file LICENSE. The files under dist/ (server.mjs, engine-worker.mjs, healthcheck.mjs, their chunks and the icon art) also contain code and data from other people. This file lists them, with the licence each is used under and the full licence text. Those licences apply to that material. The Plotwork Self-Hosted licence of plotwork-selfhost does not replace them, and it does not cover the vendor artwork described under "Trademarks and official icons".
+plotwork-selfhost 0.2.0-beta.1 is licensed under the Plotwork Self-Hosted licence, in the file LICENSE. The files under dist/ (server.mjs, engine-worker.mjs, healthcheck.mjs, their chunks and the icon art) also contain code and data from other people. This file lists them, with the licence each is used under and the full licence text. Those licences apply to that material. The Plotwork Self-Hosted licence of plotwork-selfhost does not replace them, and it does not cover the vendor artwork described under "Trademarks and official icons".
 
 The build writes this file from the contents of the bundle. Do not edit it.
 
@@ -9,7 +9,7 @@ The build writes this file from the contents of the bundle. Do not edit it.
 | Question | Answer |
 |---|---|
 | Which licence covers the Plotwork code? | Plotwork Self-Hosted, in the file LICENSE. |
-| Which third-party code is in the bundle? | 6 npm packages: @hono/node-server 2.1.3, @modelcontextprotocol/core 2.3.1, @modelcontextprotocol/server 2.3.1, elkjs 0.12.0, hono 4.13.12, zod 4.6.5. |
+| Which third-party code is in the bundle? | 6 npm packages: @hono/node-server 2.1.3, @modelcontextprotocol/core 2.3.1, @modelcontextprotocol/server 2.3.1, elkjs 0.12.0, hono 4.13.12, zod 4.6.6. |
 | Which third-party data is in the bundle? | Lucide icons; Simple Icons; SVG Logos, through @iconify-json/logos; Devicon, through @iconify-json/devicon; Kubernetes community icons, through @iconify-json/k8s; IBM Carbon icons, through @iconify-json/carbon; Inter font metrics and glyphs; JetBrains Mono font metrics and glyphs. |
 | Are official vendor icons in the bundle? | Yes: AWS, Microsoft Azure, Google Cloud. They are not covered by the Plotwork Self-Hosted licence. |
 | Where is the full text of each licence? | Under "Licence texts" at the end of this file. |
@@ -23,7 +23,7 @@ The build writes this file from the contents of the bundle. Do not edit it.
 | @modelcontextprotocol/server | 2.3.1 | Code | MIT AND Apache-2.0 | [text 2](#licence-text-2) |
 | elkjs | 0.12.0 | Code | EPL-2.0 | [text 3](#licence-text-3), [text 4](#licence-text-4) |
 | hono | 4.13.12 | Code | MIT | [text 5](#licence-text-5) |
-| zod | 4.6.5 | Code | MIT | [text 6](#licence-text-6) |
+| zod | 4.6.6 | Code | MIT | [text 6](#licence-text-6) |
 | Lucide icons | 1.49.0 | Data | ISC | [text 7](#licence-text-7) |
 | Simple Icons | 16.35.0 | Data | CC0-1.0 | [text 8](#licence-text-8) |
 | SVG Logos, through @iconify-json/logos | 1.2.17 | Data | CC0-1.0 | [text 9](#licence-text-9) |
@@ -91,7 +91,7 @@ The build writes this file from the contents of the bundle. Do not edit it.
 - NOTICE file: none shipped
 - Licence text: [text 5](#licence-text-5)
 
-### zod 4.6.5
+### zod 4.6.6
 
 - Licence declared: MIT
 - Used under: MIT
@@ -1079,7 +1079,7 @@ SOFTWARE.
 
 ### Licence text 6
 
-Licences in this text: MIT. Used by: zod 4.6.5.
+Licences in this text: MIT. Used by: zod 4.6.6.
 
 ```text
 MIT License
