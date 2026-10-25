@@ -1,6 +1,7 @@
 import { createRequire as __plotworkRequire } from 'node:module'; const require = __plotworkRequire(import.meta.url);
 import {
   ANSWER_BUDGET_CHARACTERS,
+  AUTO_ICON_INSTRUCTIONS,
   COLOR_THEMES,
   CORE_INSTRUCTIONS,
   ConvertMermaidInputSchema,
@@ -56,7 +57,7 @@ import {
   unknown,
   url,
   useSelfhostIconArt
-} from "./chunks/chunk-3XJD2K2A.mjs";
+} from "./chunks/chunk-XOBIBNEI.mjs";
 import "./chunks/chunk-42BVPR2M.mjs";
 
 // ../../node_modules/.pnpm/@hono+node-server@2.1.3_hono@4.13.12/node_modules/@hono/node-server/dist/constants-BLSFu_RU.mjs
@@ -20318,7 +20319,7 @@ var MARK_ICON = {
 // package.json
 var package_default = {
   name: "@buun/selfhost",
-  version: "0.3.0-beta.1",
+  version: "0.3.0-beta.2",
   private: true,
   description: "The self-hosted Plotwork engine: MCP over Streamable HTTP and a stateless REST surface in one Node server and container image. No accounts, no hosting, no network.",
   type: "module",
@@ -20360,7 +20361,7 @@ var SERVER_INSTRUCTIONS = [
   "Call get_diagram_syntax once with no kind to read the shared language, and again with kind set for its statements, limits, and example.",
   'Write the source and call draw_diagram: it returns every error with line, column, and hint and draws nothing until the source is valid. The answer carries no SVG text unless you pass svg "always", which you need only to save the pictures yourself; svg "never" checks a diagram most cheaply.',
   "To change a diagram saved as a Plotwork SVG, call read_diagram with the text of the file as svg, change the source with edit_diagram or by hand, and draw it again. This server makes no network request, so read_diagram takes no url.",
-  'For a finished look, label flow arrows with verbs ("reads", "publishes", "deploys to") so they draw icons, add role= (data, async, identity, private) to the lines that carry those, and give groups a type=; style in get_diagram_syntax says more.',
+  ...AUTO_ICON_INSTRUCTIONS.slice(0, 2),
   "Use map_icons to choose icons for many names at once, and never invent an icon. To move Mermaid to Plotwork, call convert_mermaid, or sync_markdown with convertMermaid true for a whole Markdown file.",
   `Choose node types and tones for meaning; colors come from the colour theme, theme=<name> on the header (${COLOR_THEMES.join(", ")}), and cannot be set one by one. This server cannot publish a diagram or make a link to one.`
 ].join(" ");

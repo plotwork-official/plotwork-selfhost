@@ -626,6 +626,11 @@ var ICON_MODE_SPEC = {
   meaning: 'auto (the default): an item with no icon= gets the icon its label, else its sub= or tech=, names for certain: a brand ("Postgres"), a cloud product ("Amazon S3"), or in some kinds a role or generic part ("Email", "Load balancer"). A name that is also an everyday word ("Vault") stays plain. icon=none keeps one item plain; off keeps all plain, with flow edge labels, and stops a flow group taking its type from its name.',
   example: 'flow "Checkout" icons=off'
 };
+var AUTO_ICON_INSTRUCTIONS = [
+  `An item with no icon= gets the icon its label names when the engine is sure, so name each item for what it is and leave icon= out: a product draws its mark ("Postgres", "Kafka", "Databricks"), a cloud product its provider's icon ("Amazon S3"), and a common part or role its plain icon ("Load balancer", "Circuit breaker", "Data lake", "Read replica", "Customers", "CI/CD"), within the node type you chose; icon=none keeps one item plain and icons=off on the header keeps them all plain.`,
+  'For a finished look, label flow arrows with verbs ("reads", "publishes", "replicates", "pushes image", "deploys to") so they draw icons, and an arrow into or out of a queue labelled with a message name draws send or receive; add role= (data, async, identity, private) to the lines that carry those, and give groups a type=; style in get_diagram_syntax says more, and its topic icon-words lists every word that draws an icon.',
+  "Use map_icons to choose icons for many names at once: it answers with the icon a label of that name draws, so its answer and the picture agree; it never guesses, so choose from the candidates for an ambiguous name, and never invent an icon."
+];
 var PLAIN_WORD_NAMES = /* @__PURE__ */ new Set([
   "access",
   "actions",
@@ -863,6 +868,8 @@ var ROLE_ICONS = {
   metrics: "lucide:activity",
   alerts: "lucide:siren",
   alerting: "lucide:siren",
+  alarm: "lucide:siren",
+  alarms: "lucide:siren",
   dashboard: "lucide:layout-dashboard",
   dashboards: "lucide:layout-dashboard",
   notification: "lucide:bell",
@@ -1265,7 +1272,6 @@ var ROLE_ICONS = {
   "solar panels": "lucide:solar-panel",
   "wind farm": "lucide:wind",
   "smart meter": "lucide:gauge",
-  fleet: "lucide:car",
   vehicles: "lucide:car",
   tracking: "lucide:map-pinned",
   "location tracking": "lucide:map-pinned",
@@ -103544,6 +103550,11 @@ function decide(name2, results, provider) {
     candidates: []
   };
 }
+function isNamedBy(ref2, name2) {
+  const phrase2 = normalizePhrase(name2);
+  const own2 = normalizePhrase(ref2.slice(ref2.indexOf(":") + 1));
+  return own2 === phrase2 || (findIcon(ref2)?.aliases ?? []).some((alias) => normalizePhrase(alias) === phrase2);
+}
 var GAP_REASON = "No bundled icon matches this name. Use the fallback, leave icon= out so the node type draws its own icon, or try a broader word such as the kind of service.";
 async function mapIcons(input2, ops = ENGINE_OPS) {
   const results = [];
@@ -103553,8 +103564,15 @@ async function mapIcons(input2, ops = ENGINE_OPS) {
     const key = name2.trim().toLowerCase();
     const found = seen.get(key) ?? lookUp(name2.trim(), input2.provider, ops);
     seen.set(key, found);
-    if (found.length === 0) gaps.push({ name: name2, fallback: FALLBACK_ICON, reason: GAP_REASON });
-    else results.push(decide(name2, found, input2.provider));
+    const searched = found.length === 0 ? null : decide(name2, found, input2.provider);
+    const auto = autoIconFor({ texts: [name2.trim()], roles: true, provider: input2.provider ?? null });
+    const searchWeak = searched === null || searched.resolved && searched.confidence !== "exact" && searched.icon !== null && !isNamedBy(searched.icon, name2);
+    const providerFound = input2.provider !== void 0 && found[0] !== void 0 && setOf3(found[0]) === input2.provider;
+    const drawn = searchWeak && !providerFound ? auto : null;
+    if (drawn !== null) {
+      results.push({ name: name2, resolved: true, icon: drawn, confidence: "exact", alternatives: found.filter((ref2) => ref2 !== drawn).slice(0, WORKFLOW_LIMITS.maxIconAlternatives), candidates: [] });
+    } else if (searched === null) gaps.push({ name: name2, fallback: FALLBACK_ICON, reason: GAP_REASON });
+    else results.push(searched);
   }
   const resolvedCount = results.filter((match) => match.resolved).length;
   return {
@@ -104782,8 +104800,8 @@ var ROLE_ICONS2 = {
   member: "lucide:user",
   patient: "lucide:user",
   employee: "lucide:user",
-  support: "lucide:message-square",
-  helpdesk: "lucide:message-square",
+  support: "lucide:headset",
+  helpdesk: "lucide:headset",
   finance: "lucide:wallet",
   accounting: "lucide:wallet",
   accounts: "lucide:wallet",
@@ -104800,9 +104818,6 @@ var ROLE_ICONS2 = {
   team: "lucide:users",
   hr: "lucide:users",
   people: "lucide:users",
-  developer: "lucide:code",
-  engineer: "lucide:code",
-  engineering: "lucide:code",
   operations: "lucide:activity",
   ops: "lucide:activity",
   security: "lucide:shield",
@@ -104811,31 +104826,31 @@ var ROLE_ICONS2 = {
   sales: "lucide:handshake",
   partner: "lucide:handshake",
   warehouse: "lucide:warehouse",
-  inventory: "lucide:boxes",
+  inventory: "lucide:package",
   stock: "lucide:boxes",
   order: "lucide:package",
   shipping: "lucide:package",
-  catalog: "lucide:book-open",
+  catalog: "lucide:package-search",
   product: "lucide:package",
   email: "lucide:mail",
   mail: "lucide:mail",
   notification: "lucide:bell",
   search: "lucide:search",
   auth: "lucide:key-round",
-  identity: "lucide:key-round",
+  identity: "lucide:id-card",
   login: "lucide:key-round",
-  gateway: "lucide:route",
-  web: "lucide:globe",
-  website: "lucide:globe",
-  browser: "lucide:globe",
+  gateway: "lucide:router",
+  web: "lucide:app-window",
+  website: "lucide:app-window",
+  browser: "lucide:app-window",
   mobile: "lucide:smartphone",
   app: "lucide:smartphone",
   database: "lucide:database",
   db: "lucide:database",
   storage: "lucide:hard-drive",
   server: "lucide:server",
-  scheduler: "lucide:clock",
-  cron: "lucide:clock",
+  scheduler: "lucide:calendar-clock",
+  cron: "lucide:calendar-clock",
   bot: "lucide:bot",
   agent: "lucide:bot",
   webhook: "lucide:webhook"
@@ -104843,17 +104858,20 @@ var ROLE_ICONS2 = {
 function singular2(word2) {
   return word2.length > 3 && word2.endsWith("s") && !word2.endsWith("ss") ? word2.slice(0, -1) : word2;
 }
-function iconFor(name2) {
+function iconFor(name2, type) {
+  const fitting = type === void 0 ? void 0 : TYPE_ROLE_SETS[type];
+  const drawn = autoIconFor({ texts: [name2], roles: true, provider: null, ...fitting === void 0 ? {} : { fitting } });
+  if (drawn !== null) return drawn;
   const product = iconNamedBy(name2, null);
   if (product !== null) return product;
   for (const word2 of wordsOf7(name2)) {
     const ref2 = ROLE_ICONS2[word2] ?? ROLE_ICONS2[singular2(word2)];
-    if (ref2 !== void 0 && isKnownIcon(ref2)) return ref2;
+    if (ref2 !== void 0 && isKnownIcon(ref2) && (fitting === void 0 || fitting.has(ref2))) return ref2;
   }
   return null;
 }
-function iconOption(name2) {
-  const ref2 = iconFor(name2);
+function iconOption(name2, type) {
+  const ref2 = iconFor(name2, type);
   return ref2 === null ? "" : ` icon=${ref2}`;
 }
 
@@ -104903,7 +104921,7 @@ function linkedFlow(material, title) {
   const links = material.relations.slice(0, MOST * 2).map((relation2) => ({ from: nodeOf5(relation2.from), to: nodeOf5(relation2.to), verb: relation2.verb }));
   const edges = links.map((link2) => `${link2.from} -> ${link2.to} : ${quoted5(link2.verb)}${roleOption(link2.verb)}`);
   return sourceOf(`flow ${quoted5(title)} direction=${directionFor(longestChain2(links))}`, [
-    ...[...nodes.values()].map((node3) => `node ${node3.id} ${partType(node3.label)} ${quoted5(node3.label)}${iconOption(node3.label)}`),
+    ...[...nodes.values()].map((node3) => `node ${node3.id} ${partType(node3.label)} ${quoted5(node3.label)}${iconOption(node3.label, partType(node3.label))}`),
     "",
     ...edges
   ]);
@@ -105756,6 +105774,7 @@ function useSelfhostIconArt(entryUrl) {
 export {
   joinWords,
   COLOR_THEMES,
+  AUTO_ICON_INSTRUCTIONS,
   NEVER,
   toJSONSchema,
   safeParse2 as safeParse,
