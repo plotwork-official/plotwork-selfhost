@@ -1,0 +1,29 @@
+{
+  "$schema": "https://docs.plotwork.dev/schemas/plotwork.config.json",
+  "defaults": {
+    "scheme": "auto"
+  },
+  "sources": [
+    {
+      "name": "charts-plotwork-selfhost",
+      "from": "charts/plotwork-selfhost",
+      "format": "helm",
+      "out": "docs/diagrams/charts-plotwork-selfhost.diagram"
+    },
+    {
+      "name": "dockerfiles",
+      "from": "Dockerfile",
+      "format": "dockerfile",
+      "out": "docs/diagrams/dockerfiles.diagram"
+    },
+    {
+      "name": "workflows",
+      "from": [
+        ".github/workflows/*.yml",
+        ".github/workflows/*.yaml"
+      ],
+      "format": "github-actions",
+      "out": "docs/diagrams/workflows.diagram"
+    }
+  ]
+}
