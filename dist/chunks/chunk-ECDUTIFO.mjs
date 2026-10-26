@@ -1687,6 +1687,7 @@ function schemeFlag(release = CLI_RELEASE) {
 // ../../packages/diagrams/src/constants/terraform-release.ts
 var TERRAFORM_PROVIDER_SOURCE = "plotwork-official/plotwork";
 var TERRAFORM_REGISTRY_URL = `https://registry.terraform.io/providers/${TERRAFORM_PROVIDER_SOURCE}/latest`;
+var TERRAFORM_REGISTRY_VERSIONS_URL = `https://registry.terraform.io/v2/providers/${TERRAFORM_PROVIDER_SOURCE}?include=provider-versions`;
 
 // ../../packages/diagrams/src/constants/gitlab-component-release.ts
 var GITLAB_COMPONENT_RELEASE = {
