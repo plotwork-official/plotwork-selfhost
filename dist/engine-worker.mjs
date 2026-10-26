@@ -3,7 +3,7 @@ import {
   denyNetwork,
   runJob,
   useSelfhostIconArt
-} from "./chunks/chunk-4CNHQFA7.mjs";
+} from "./chunks/chunk-K7SZGMKB.mjs";
 import "./chunks/chunk-42BVPR2M.mjs";
 
 // src/engine-worker.ts
