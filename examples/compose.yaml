@@ -8,7 +8,7 @@
 
 services:
   plotwork:
-    image: ${PLOTWORK_IMAGE:-plotwork/selfhost:0.4.0-beta.1}
+    image: ${PLOTWORK_IMAGE:-plotwork/selfhost:0.4.0}
     restart: unless-stopped
     environment:
       PLOTWORK_TOKEN: ${PLOTWORK_TOKEN:?Set PLOTWORK_TOKEN in .env, for example with openssl rand -hex 32}
