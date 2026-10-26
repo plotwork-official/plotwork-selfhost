@@ -57,7 +57,7 @@ import {
   unknown,
   url,
   useSelfhostIconArt
-} from "./chunks/chunk-ECDUTIFO.mjs";
+} from "./chunks/chunk-4CNHQFA7.mjs";
 import "./chunks/chunk-42BVPR2M.mjs";
 
 // ../../node_modules/.pnpm/@hono+node-server@2.1.3_hono@4.13.12/node_modules/@hono/node-server/dist/constants-BLSFu_RU.mjs
@@ -20319,7 +20319,7 @@ var MARK_ICON = {
 // package.json
 var package_default = {
   name: "@buun/selfhost",
-  version: "0.4.0",
+  version: "0.5.0-beta.1",
   private: true,
   description: "The self-hosted Plotwork engine: MCP over Streamable HTTP and a stateless REST surface in one Node server and container image. No accounts, no hosting, no network.",
   type: "module",
@@ -20363,7 +20363,8 @@ var SERVER_INSTRUCTIONS = [
   "To change a diagram saved as a Plotwork SVG, call read_diagram with the text of the file as svg, change the source with edit_diagram or by hand, and draw it again. This server makes no network request, so read_diagram takes no url.",
   ...AUTO_ICON_INSTRUCTIONS.slice(0, 2),
   "Use map_icons to choose icons for many names at once, and never invent an icon. To move Mermaid to Plotwork, call convert_mermaid, or sync_markdown with convertMermaid true for a whole Markdown file.",
-  `Choose node types and tones for meaning; colors come from the colour theme, theme=<name> on the header (${COLOR_THEMES.join(", ")}), and cannot be set one by one. This server cannot publish a diagram or make a link to one.`
+  `Choose node types and tones for meaning; colors come from the colour theme, theme=<name> on the header (${COLOR_THEMES.join(", ")}), and cannot be set one by one. This server cannot publish a diagram or make a link to one.`,
+  "Read quality in each answer: its hints name the option to change, such as direction=down or spacing=compact. On a flow header spacing=compact packs the boxes for a dense page and spacing=roomy spreads them for a slide."
 ].join(" ");
 var CORE_SERVER_INSTRUCTIONS = `${CORE_INSTRUCTIONS} This server makes no network request and cannot publish a diagram or make a link to one.`;
 var READ_DIAGRAM_DESCRIPTION = "Read the source of an existing Plotwork SVG so you can edit the diagram. Send the text of an .svg file as svg. Returns the exact source, its kind, and a parse check. Call it first when asked to change a diagram that already exists, then edit the source and call draw_diagram (or edit_diagram). Only a picture saved with embedSource true (or by sync_markdown) carries its source; otherwise status is no-source, with the title, outline, and labels to rebuild it from. " + NO_LINKS_MESSAGE;

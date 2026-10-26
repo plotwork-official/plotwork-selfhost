@@ -513,6 +513,7 @@ var LINE_LEGEND_NAMES = [
   { line: "dotted", heads: "end", name: "Asynchronous" },
   { line: "solid", heads: "none", name: "Association" }
 ];
+var MAIN_PATH_LEGEND_NAME = "Main path";
 var LINE_LOOK_NAMES = { solid: "Line", dashed: "Dashed line", dotted: "Dotted line" };
 var NODE_TYPE_LEGEND_NAMES = {
   person: "Person",
@@ -608,6 +609,54 @@ var LINE_OPTION_SPECS = [
     values: LEGEND_PART_WORDS.join(", "),
     meaning: "Flow only. The legend's parts, a comma list of lines, boxes, icons, groups, changes; all (the default) or basic (no icons).",
     example: 'flow "Platform" legend=on legendparts=lines,boxes'
+  }
+];
+
+// ../../packages/diagrams/src/constants/spacing.ts
+var SPACING_VALUES = ["compact", "normal", "roomy"];
+var DEFAULT_SPACING = "normal";
+
+// ../../packages/diagrams/src/constants/flow-look.ts
+var EDGE_SHAPES = ["orthogonal", "spline", "straight"];
+var DEFAULT_EDGE_SHAPE = "orthogonal";
+var FIT_VALUES = ["auto", "wide", "tall", "square"];
+var DEFAULT_FIT = "auto";
+var ALIGN_LIMIT = 12;
+var FLOW_LOOK_SPECS = [
+  {
+    key: "spacing",
+    scope: "header",
+    values: SPACING_VALUES.join(", "),
+    meaning: "How far apart the boxes and layers sit: compact for a dense page, roomy for a slide, normal by default. Text and padding stay the same.",
+    example: 'flow "Platform" spacing=roomy'
+  },
+  {
+    key: "edges",
+    scope: "header",
+    values: EDGE_SHAPES.join(", "),
+    meaning: "How lines are drawn: orthogonal (straight runs, rounded corners, the default), spline (one smooth curve through the same route), or straight (slanted runs between the ends).",
+    example: 'flow "Platform" edges=spline'
+  },
+  {
+    key: "fit",
+    scope: "header",
+    values: FIT_VALUES.join(", "),
+    meaning: "The shape the picture is made for, which decides direction=auto: wide always lays it across (slides), tall always down (phones), square takes the way nearer a square. A named direction wins.",
+    example: 'flow "Platform" fit=wide'
+  },
+  {
+    key: "main",
+    scope: "line",
+    values: "on, off",
+    meaning: "Marks the line as part of the main path: drawn heavier, kept as straight as layout can, and named in the legend.",
+    example: 'web -> api : "places order" main=on'
+  },
+  {
+    key: "align",
+    scope: "statement",
+    values: `2 to ${ALIGN_LIMIT} node ids`,
+    meaning: "Keeps the nodes in one rank: one row of a diagram drawn down, one column of a diagram drawn across. A node is in one align statement at most.",
+    example: "align payments, email"
   }
 ];
 
@@ -1592,8 +1641,11 @@ var ACTOR_TYPES = FLOW_NODE_TYPES.filter((type) => FLOW_NODE_TYPE_DEFAULTS[type]
 
 // ../../packages/diagrams/src/constants/api-limits.ts
 var API_LIMITS = {
-  /** Longest diagram source, in characters. */
-  maxSourceLength: 5e4,
+  /**
+   * Longest diagram source, in characters. Raised from 50,000 so the whole of a big import fits as one diagram: a Terraform stack of
+   * 600 resources writes about 100,000 characters, and lays out in 2 to 12 seconds of CPU depending on its arrows.
+   */
+  maxSourceLength: 12e4,
   /** Longest icon search query, in characters. */
   maxIconQueryLength: 64,
   /** Most icons one search returns. */
@@ -1944,6 +1996,14 @@ var WORKFLOW_LIMITS = {
   maxImportLocalFiles: 2e4,
   /** import_source: most diagrams an import too big for one picture is split into; a reader packs more into each before it passes this. */
   maxImportParts: 24,
+  /**
+   * import_source: most arrows the whole of a split import may have to be drawn as one diagram (`combined`, or the source when
+   * `large` is `whole`). Layout time grows with the arrows far more than with the boxes. Whole Terraform stacks measured in Node on a
+   * laptop: 720 boxes and 360 arrows took 3.1 seconds of CPU; 280 boxes and 490 arrows 6.4; 480 boxes and 840 arrows 11.7; 720 boxes
+   * and 1,260 arrows 18. The Engine is about twice as slow as a laptop, so 500 arrows keeps a whole near 13 of its 30 seconds. Past it
+   * the parts are drawn alone and I207 says why. Boxes are held by `LAYOUT_LIMITS` like every flow.
+   */
+  maxImportWholeArrows: 500,
   /** import_source: most boxes in an imported flow (services, resources, jobs, steps); the rest are left out and reported. */
   maxImportNodes: 40,
   /** import_source: most tables in an imported schema. */
@@ -1972,6 +2032,24 @@ var WORKFLOW_LIMITS = {
   maxSyncPageSize: 30
 };
 var FALLBACK_ICON = "lucide:box";
+
+// ../../packages/diagrams/src/constants/series.ts
+var IMPORT_LARGE = ["parts", "whole", "both"];
+var DEFAULT_IMPORT_LARGE = "both";
+var SLUG_MAX_LENGTH = 40;
+function fnv1a(text5) {
+  let hash2 = 2166136261;
+  for (let index2 = 0; index2 < text5.length; index2 += 1) {
+    hash2 ^= text5.charCodeAt(index2);
+    hash2 = Math.imul(hash2, 16777619) >>> 0;
+  }
+  return hash2.toString(16).padStart(8, "0");
+}
+function suggestSeriesId(format, titles) {
+  const slug = (titles[0] ?? format).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, SLUG_MAX_LENGTH).replace(/-+$/g, "");
+  const tag = fnv1a([format, ...titles].join("\n"));
+  return slug === "" ? `${format.replace(/[^A-Za-z0-9_-]/g, "")}-${tag}`.replace(/^-/, "") : `${slug}-${tag}`;
+}
 
 // ../../packages/diagrams/src/constants/cloud/alibaba.ts
 var ALIBABA_ICONS = [
@@ -5278,6 +5356,9 @@ var DIAGNOSTIC_CODES = {
   // An icon= name that is not bundled. A warning since 2026-10-20 (it was error E122): the item draws its default icon, so a missing
   // brand never stops a drawing, and the hint names the closest icons.
   unknownIcon: "W208",
+  // An `align` whose nodes sit in different groups (or one in a group and one outside): a group's frame takes layers of its own, so
+  // layout may not manage one rank for them. The diagram draws; the hint says to move them into one group.
+  alignAcrossGroups: "W209",
   // Style suggestions. W5xx says how a valid diagram would look more finished; like W204 and W205 it is a suggestion, not a problem
   // (`isStyleHint`), so a check that fails on warnings passes it.
   suggestLineRole: "W500",
@@ -5450,6 +5531,7 @@ var DIAGNOSTIC_CODES = {
   importChanged: "I203",
   importSplit: "I204",
   importPartial: "I206",
+  importWholeLeftOut: "I207",
   // Style rules (src/rules). R1xx: the rules file cannot be used, and points into it. R2xx: a diagram breaks a rule, and points into the
   // diagram; an error by default, or a warning when the rule says `"level": "warning"`.
   rulesInvalid: "R100",
@@ -9951,7 +10033,7 @@ var ICON_ART_SHARDS = {
 var ART_PACKS = ["aws", "azure", "gcp", "simple", "k8s"];
 
 // ../../packages/diagrams/src/icons/art/shards.ts
-function fnv1a(text5) {
+function fnv1a2(text5) {
   let hash2 = 2166136261;
   for (let index2 = 0; index2 < text5.length; index2 += 1) {
     hash2 ^= text5.charCodeAt(index2);
@@ -9960,7 +10042,7 @@ function fnv1a(text5) {
   return hash2;
 }
 function shardIndexOf(key, count3) {
-  return fnv1a(key) % count3;
+  return fnv1a2(key) % count3;
 }
 function splitArtKey(text5) {
   const separator = text5.indexOf(":");
@@ -31004,7 +31086,14 @@ var NODE_METRICS = {
 };
 var EDGE_METRICS = {
   strokeWidth: 1.5,
+  /** A line of the main path (`main=on`): heavier, so the eye follows it first; its arrowhead is drawn in the same weight. */
+  mainStrokeWidth: 2.5,
   cornerRadius: 10,
+  /**
+   * The corner radius of a line drawn with `edges=spline`. A corner never takes more than half of either run it joins, so a radius this
+   * large makes each bend as wide as its runs allow and the line one smooth curve through its route.
+   */
+  splineRadius: 400,
   arrowLength: 7,
   arrowHalfWidth: 4.5,
   /** Straight line kept between the last bend and the chevron's rear, so the head never sits on a curve. */
@@ -31155,6 +31244,11 @@ var CANVAS_METRICS = {
   edgeSpacing: 14,
   /** Width in px that fits a Markdown column without scaling text below readable size. */
   targetWidth: 880
+};
+var FLOW_SPACING = {
+  compact: { nodeSpacing: 16, layerSpacing: 48, edgeNodeSpacing: 16, groupNodeSpacing: 12 },
+  normal: { nodeSpacing: CANVAS_METRICS.nodeSpacing, layerSpacing: CANVAS_METRICS.layerSpacing, edgeNodeSpacing: CANVAS_METRICS.edgeNodeSpacing, groupNodeSpacing: null },
+  roomy: { nodeSpacing: 48, layerSpacing: 96, edgeNodeSpacing: 28, groupNodeSpacing: 40 }
 };
 
 // ../../packages/diagrams/src/theme/group-colors.ts
@@ -36073,8 +36167,8 @@ function roundedHoppedPaths(rawPoints, radius, leads, crossings2, hopRadius, apa
 function roundedPath(rawPoints, radius, leads = NO_LEADS) {
   return roundedHoppedPaths(rawPoints, radius, leads, [], 0, false).line;
 }
-function arrowHead(tip, travel, color) {
-  const point = along(tip, travel, -EDGE_METRICS.strokeWidth / 2);
+function arrowHead(tip, travel, color, strokeWidth) {
+  const point = along(tip, travel, -strokeWidth / 2);
   const base = along(point, travel, -EDGE_METRICS.arrowLength);
   const perpendicular = { x: -travel.y, y: travel.x };
   const left = along(base, perpendicular, EDGE_METRICS.arrowHalfWidth);
@@ -36084,7 +36178,7 @@ function arrowHead(tip, travel, color) {
     d,
     fill: "none",
     stroke: color,
-    "stroke-width": EDGE_METRICS.strokeWidth,
+    "stroke-width": strokeWidth,
     "stroke-linecap": "round",
     "stroke-linejoin": "round"
   });
@@ -36102,19 +36196,21 @@ function paintArrowLine(rawPoints, style) {
   const leads = { start: hasStartHead ? headLead : 0, end: hasEndHead ? headLead : 0 };
   const isHopped = route.length === 2 && Math.abs(first.y - last.y) < 0.01 && (style.hops?.length ?? 0) > 0;
   const crossings2 = style.crossings ?? [];
-  const hopped = isHopped ? hoppedPaths(first, last, style.hops ?? [], style.hopRadius ?? 0, leads, style.line !== "solid") : crossings2.length > 0 ? roundedHoppedPaths(route, EDGE_METRICS.cornerRadius, leads, crossings2, style.hopRadius ?? 0, style.line !== "solid") : null;
-  const stroke = { fill: "none", stroke: style.color, "stroke-width": EDGE_METRICS.strokeWidth, "stroke-linecap": "round", "stroke-linejoin": "round" };
+  const radius = style.cornerRadius ?? EDGE_METRICS.cornerRadius;
+  const strokeWidth = style.strokeWidth ?? EDGE_METRICS.strokeWidth;
+  const hopped = isHopped ? hoppedPaths(first, last, style.hops ?? [], style.hopRadius ?? 0, leads, style.line !== "solid") : crossings2.length > 0 ? roundedHoppedPaths(route, radius, leads, crossings2, style.hopRadius ?? 0, style.line !== "solid") : null;
+  const stroke = { fill: "none", stroke: style.color, "stroke-width": strokeWidth, "stroke-linecap": "round", "stroke-linejoin": "round" };
   const parts = [
     el("path", {
-      d: hopped === null ? roundedPath(route, EDGE_METRICS.cornerRadius, leads) : hopped.line,
+      d: hopped === null ? roundedPath(route, radius, leads) : hopped.line,
       ...stroke,
       "stroke-dasharray": style.line === "dashed" ? EDGE_METRICS.dashPattern : style.line === "dotted" ? EDGE_METRICS.dotPattern : null,
       class: style.isAnimated === true ? motionClass(style.line) : null
     })
   ];
   if (hopped !== null && hopped.arcs !== "") parts.push(el("path", { d: hopped.arcs, ...stroke }));
-  if (hasEndHead) parts.push(arrowHead(last, unit(beforeLast, last), style.color));
-  if (hasStartHead) parts.push(arrowHead(first, unit(second, first), style.color));
+  if (hasEndHead) parts.push(arrowHead(last, unit(beforeLast, last), style.color, strokeWidth));
+  if (hasStartHead) parts.push(arrowHead(first, unit(second, first), style.color, strokeWidth));
   return parts;
 }
 
@@ -37383,6 +37479,11 @@ function snapScene(scene) {
   }
 }
 
+// ../../packages/diagrams/src/layout/flow/spacing.ts
+function flowSpacing(diagram) {
+  return FLOW_SPACING[diagram.spacing ?? "normal"];
+}
+
 // ../../packages/diagrams/src/layout/flow/large-diagram.ts
 var LARGE_DIAGRAM_NODES = 100;
 var LARGE_DIAGRAM_OPTIONS = {
@@ -37398,7 +37499,7 @@ function isTooWideSideways(diagram, boxes2) {
   let narrowest2 = Infinity;
   for (const box of boxes2.values()) narrowest2 = Math.min(narrowest2, box.width);
   if (!Number.isFinite(narrowest2)) return false;
-  return layers * narrowest2 + (layers - 1) * CANVAS_METRICS.layerSpacing > 2 * CANVAS_METRICS.targetWidth;
+  return layers * narrowest2 + (layers - 1) * flowSpacing(diagram).layerSpacing > 2 * CANVAS_METRICS.targetWidth;
 }
 
 // ../../packages/diagrams/src/layout/flow/size-node.ts
@@ -37588,6 +37689,57 @@ function edgeLabelHeight(edge) {
   return edge.label === null && edge.step !== void 0 ? STEP_METRICS.height : EDGE_METRICS.labelHeight;
 }
 
+// ../../packages/diagrams/src/layout/flow/align-ranks.ts
+var ALIGN_EDGE_PREFIX = "align-";
+function isAlignEdge(id) {
+  return id.startsWith(ALIGN_EDGE_PREFIX);
+}
+function reachableFrom(start2, diagram) {
+  const seen = /* @__PURE__ */ new Set([start2]);
+  const queue = [start2];
+  for (let id = queue.shift(); id !== void 0; id = queue.shift()) {
+    for (const edge of diagram.edges) {
+      if (edge.from !== id || seen.has(edge.to)) continue;
+      seen.add(edge.to);
+      queue.push(edge.to);
+    }
+  }
+  return seen;
+}
+function alignEdges(diagram) {
+  if (diagram.aligns === void 0) return [];
+  const ranks = rankNodes(diagram);
+  const hidden = [];
+  diagram.aligns.forEach((align, alignIndex) => {
+    const deepest = Math.max(...align.members.map((member) => ranks.get(member) ?? 0));
+    const target = align.members.find((member) => (ranks.get(member) ?? 0) === deepest);
+    if (target === void 0) return;
+    const into = diagram.edges.filter((edge) => edge.to === target && edge.from !== target);
+    for (const member of align.members) {
+      if (member === target || (ranks.get(member) ?? 0) === deepest) continue;
+      const ahead = reachableFrom(member, diagram);
+      into.forEach((edge, edgeIndex2) => {
+        if (ahead.has(edge.from)) return;
+        const height = edgeLabelHeight(edge);
+        hidden.push({
+          id: `${ALIGN_EDGE_PREFIX}${alignIndex}-${member}-${edgeIndex2}`,
+          sources: [edge.from],
+          targets: [member],
+          // Only the rank: no pull on where the nodes sit across, so the real lines stay as straight as they were.
+          layoutOptions: { "elk.layered.priority.straightness": "0", "elk.layered.priority.shortness": "0" },
+          // A labelled line is one layer longer, for its label; the copy carries a label as thin as can be, so it asks for the same rank.
+          ...edgeLabelWidth(edge) === 0 ? {} : { labels: [{ text: " ", width: 1, height, layoutOptions: { "elk.edgeLabels.inline": "true" } }] }
+        });
+      });
+    }
+  });
+  return hidden;
+}
+function withoutAlignEdges(laidOut2) {
+  const edges = laidOut2.edges?.filter((edge) => !isAlignEdge(edge.id));
+  return edges === void 0 || edges.length === laidOut2.edges?.length ? laidOut2 : { ...laidOut2, edges };
+}
+
 // ../../packages/diagrams/src/layout/flow/elk-graph.ts
 var ELK_DIRECTIONS = {
   right: "RIGHT",
@@ -37595,19 +37747,20 @@ var ELK_DIRECTIONS = {
   left: "LEFT",
   up: "UP"
 };
-function rootOptions(direction, isLarge) {
+function rootOptions(direction, isLarge, spacing, diagram) {
   return {
     "elk.algorithm": "layered",
     "elk.direction": ELK_DIRECTIONS[direction],
-    "elk.edgeRouting": "ORTHOGONAL",
+    // A spline is painted as a curve through the orthogonal route, so only straight lines are routed differently.
+    "elk.edgeRouting": diagram.edgeShape === "straight" ? "POLYLINE" : "ORTHOGONAL",
     "elk.hierarchyHandling": "INCLUDE_CHILDREN",
     "elk.json.edgeCoords": "ROOT",
     "elk.json.shapeCoords": "ROOT",
     "elk.padding": `[top=${CANVAS_METRICS.padding},left=${CANVAS_METRICS.padding},bottom=${CANVAS_METRICS.padding},right=${CANVAS_METRICS.padding}]`,
-    "elk.spacing.nodeNode": String(CANVAS_METRICS.nodeSpacing),
-    "elk.layered.spacing.nodeNodeBetweenLayers": String(CANVAS_METRICS.layerSpacing),
-    "elk.spacing.edgeNode": String(CANVAS_METRICS.edgeNodeSpacing),
-    "elk.layered.spacing.edgeNodeBetweenLayers": String(CANVAS_METRICS.edgeNodeSpacing),
+    "elk.spacing.nodeNode": String(spacing.nodeSpacing),
+    "elk.layered.spacing.nodeNodeBetweenLayers": String(spacing.layerSpacing),
+    "elk.spacing.edgeNode": String(spacing.edgeNodeSpacing),
+    "elk.layered.spacing.edgeNodeBetweenLayers": String(spacing.edgeNodeSpacing),
     "elk.spacing.edgeEdge": String(CANVAS_METRICS.edgeSpacing),
     "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
     "elk.layered.nodePlacement.strategy": "NETWORK_SIMPLEX",
@@ -37617,6 +37770,10 @@ function rootOptions(direction, isLarge) {
     ...isLarge ? LARGE_DIAGRAM_OPTIONS : {}
   };
 }
+var MAIN_EDGE_OPTIONS = {
+  "elk.layered.priority.straightness": "10",
+  "elk.layered.priority.direction": "10"
+};
 function nestedOptions(isOrdered) {
   return {
     "elk.layered.nodePlacement.strategy": "BRANDES_KOEPF",
@@ -37626,7 +37783,7 @@ function nestedOptions(isOrdered) {
 }
 var GROUP_PADDING = { side: GROUP_METRICS.paddingSide, bottom: GROUP_METRICS.paddingBottom };
 var OVERLAY_PADDING = { side: GROUP_METRICS.overlayPaddingSide, bottom: GROUP_METRICS.overlayPaddingBottom };
-function frameNode(id, content, direction, padding, isOrdered) {
+function frameNode(id, content, direction, padding, isOrdered, spacing) {
   const tab = sizeGroupTab(content);
   const paddingTop = groupPaddingTop(tab);
   const minWidth = minGroupWidth(tab);
@@ -37639,13 +37796,14 @@ function frameNode(id, content, direction, padding, isOrdered) {
       "elk.padding": `[top=${paddingTop},left=${padding.side},bottom=${padding.bottom},right=${padding.side}]`,
       "elk.nodeSize.constraints": "MINIMUM_SIZE",
       "elk.nodeSize.minimum": isTurned ? `(${minHeight},${minWidth})` : `(${minWidth},${minHeight})`,
-      ...nestedOptions(isOrdered)
+      ...nestedOptions(isOrdered),
+      ...spacing.groupNodeSpacing === null ? {} : { "elk.spacing.nodeNode": String(spacing.groupNodeSpacing) }
     }
   };
 }
-function levelGap(edge) {
+function levelGap(edge, spacing) {
   const boxWidth = edgeLabelWidth(edge);
-  return Math.max(CANVAS_METRICS.nodeSpacing, boxWidth === 0 ? LEVEL_GAP_PLAIN : boxWidth + LEVEL_GAP_MARGIN);
+  return Math.max(spacing.nodeSpacing, boxWidth === 0 ? LEVEL_GAP_PLAIN : boxWidth + LEVEL_GAP_MARGIN);
 }
 var LEVEL_GAP_PLAIN = 56;
 var LEVEL_GAP_MARGIN = 32;
@@ -37662,7 +37820,7 @@ function reserveLevelRoom(diagram, levelEdges, parents, elements) {
     const toChain = ancestry(edge.to, parents);
     const common = fromChain.find((id) => toChain.includes(id));
     const heads = [common === void 0 ? fromChain[fromChain.length - 1] : fromChain[fromChain.indexOf(common) - 1], common === void 0 ? toChain[toChain.length - 1] : toChain[toChain.indexOf(common) - 1]];
-    for (const head of heads) if (head !== void 0) gaps.set(head, Math.max(gaps.get(head) ?? 0, levelGap(edge)));
+    for (const head of heads) if (head !== void 0) gaps.set(head, Math.max(gaps.get(head) ?? 0, levelGap(edge, flowSpacing(diagram))));
   }
   for (const [id, gap] of gaps) {
     const element = elements.get(id);
@@ -37675,10 +37833,11 @@ function edgesInOrder(diagram, order) {
   return order.flatMap((id) => byId.get(id) ?? []);
 }
 function buildElkGraph(diagram, boxes2, direction, isOrdered = true, levelEdges = /* @__PURE__ */ new Set(), edgeOrder = []) {
-  const root = { id: "root", children: [], edges: [], layoutOptions: rootOptions(direction, isLargeDiagram(diagram)) };
-  const groupNodes = new Map(diagram.groups.map((group2) => [group2.id, frameNode(group2.id, group2, direction, GROUP_PADDING, isOrdered)]));
+  const spacing = flowSpacing(diagram);
+  const root = { id: "root", children: [], edges: [], layoutOptions: rootOptions(direction, isLargeDiagram(diagram), spacing, diagram) };
+  const groupNodes = new Map(diagram.groups.map((group2) => [group2.id, frameNode(group2.id, group2, direction, GROUP_PADDING, isOrdered, spacing)]));
   const { contained } = splitOverlays(diagram);
-  const overlayNodes = new Map(contained.map((overlay) => [overlay.id, frameNode(overlay.id, overlay, direction, OVERLAY_PADDING, isOrdered)]));
+  const overlayNodes = new Map(contained.map((overlay) => [overlay.id, frameNode(overlay.id, overlay, direction, OVERLAY_PADDING, isOrdered, spacing)]));
   const overlayOfMember = new Map(contained.flatMap((overlay) => overlay.members.map((member) => [member, overlay.id])));
   const inserted = /* @__PURE__ */ new Set();
   const parents = /* @__PURE__ */ new Map();
@@ -37717,6 +37876,7 @@ function buildElkGraph(diagram, boxes2, direction, isOrdered = true, levelEdges 
       id: edge.id,
       sources: [edge.from],
       targets: [edge.to],
+      ...edge.isMain === true ? { layoutOptions: MAIN_EDGE_OPTIONS } : {},
       // A numbered edge with no label still gets a box, the size of its badge, so layout leaves room for the badge on its line.
       // ELK places no label whose text is empty, so the box carries the number as its text; `placeEdges` turns it back into no text.
       ...edgeLabelWidth(edge) === 0 ? {} : {
@@ -37731,6 +37891,7 @@ function buildElkGraph(diagram, boxes2, direction, isOrdered = true, levelEdges 
       }
     });
   }
+  root.edges?.push(...alignEdges(diagram));
   return root;
 }
 
@@ -38659,16 +38820,19 @@ function paintedLine(line5, role) {
 }
 
 // ../../packages/diagrams/src/render/flow/paint-edge.ts
-function paintEdge(edge, placed, theme, crossings2 = []) {
+function paintEdge(edge, placed, theme, crossings2 = [], shape = "orthogonal") {
+  const isCurve = shape === "spline";
   const parts = paintArrowLine(placed.points, {
     color: edge.role === void 0 ? theme.edge : roleColor(edge.role, theme),
     line: paintedLine(edge.line, edge.role),
     heads: edge.heads,
     isAnimated: edge.isAnimated === true,
-    ...crossings2.length === 0 ? {} : { crossings: crossings2, hopRadius: EDGE_METRICS.hopRadius }
+    ...crossings2.length === 0 || isCurve ? {} : { crossings: crossings2, hopRadius: EDGE_METRICS.hopRadius },
+    ...isCurve ? { cornerRadius: EDGE_METRICS.splineRadius } : {},
+    ...edge.isMain === true ? { strokeWidth: EDGE_METRICS.mainStrokeWidth } : {}
   });
   if (parts.length === 0) return "";
-  return el("g", { "data-edge": edge.id, "data-from": edge.from, "data-to": edge.to, "data-role": edge.role ?? null }, parts);
+  return el("g", { "data-edge": edge.id, "data-from": edge.from, "data-to": edge.to, "data-role": edge.role ?? null, "data-main": edge.isMain === true ? "true" : null }, parts);
 }
 function labelIconColor(icon, theme) {
   const tone = iconTone(icon);
@@ -42864,7 +43028,8 @@ function lineEntries(diagram) {
       const [line5, heads] = key.split(" ");
       return { sample: { kind: "line", line: line5, heads }, name: lineName(line5, heads) };
     }),
-    ...LINE_ROLES.filter((role) => roles.has(role)).map((role) => ({ sample: { kind: "line", line: strokedLine("solid", role), heads: "end", role }, name: LINE_ROLE_SPECS[role].legend }))
+    ...LINE_ROLES.filter((role) => roles.has(role)).map((role) => ({ sample: { kind: "line", line: strokedLine("solid", role), heads: "end", role }, name: LINE_ROLE_SPECS[role].legend })),
+    ...diagram.edges.some((edge) => edge.isMain === true) ? [{ sample: { kind: "line", line: "solid", heads: "end", isMain: true }, name: MAIN_PATH_LEGEND_NAME }] : []
   ];
 }
 function boxEntries(diagram) {
@@ -43159,14 +43324,14 @@ function routeAroundTabs2(edge, tabs, nodes) {
 }
 async function runElk3(diagram, boxes2, direction, level2) {
   const elk = await getElk();
-  if (isLargeDiagram(diagram) && diagram.groups.length > 0) return elk.layout(buildElkGraph(diagram, boxes2, direction, false, level2));
+  if (isLargeDiagram(diagram) && diagram.groups.length > 0) return withoutAlignEdges(await elk.layout(buildElkGraph(diagram, boxes2, direction, false, level2)));
   let isOrdered = true;
   let laidOut2;
   try {
-    laidOut2 = await elk.layout(buildElkGraph(diagram, boxes2, direction, true, level2));
+    laidOut2 = withoutAlignEdges(await elk.layout(buildElkGraph(diagram, boxes2, direction, true, level2)));
   } catch {
     isOrdered = false;
-    laidOut2 = await elk.layout(buildElkGraph(diagram, boxes2, direction, false, level2));
+    laidOut2 = withoutAlignEdges(await elk.layout(buildElkGraph(diagram, boxes2, direction, false, level2)));
   }
   return isLargeDiagram(diagram) ? laidOut2 : untangleFans(laidOut2, { diagram, boxes: boxes2, direction, level: level2, isOrdered });
 }
@@ -43175,7 +43340,7 @@ async function untangleFans(first, input2) {
   if (order === null) return first;
   const elk = await getElk();
   try {
-    const second = await elk.layout(buildElkGraph(input2.diagram, input2.boxes, input2.direction, input2.isOrdered, input2.level, order));
+    const second = withoutAlignEdges(await elk.layout(buildElkGraph(input2.diagram, input2.boxes, input2.direction, input2.isOrdered, input2.level, order)));
     return elkCrossings(second) < elkCrossings(first) ? second : first;
   } catch {
     return first;
@@ -43242,11 +43407,18 @@ async function layoutWith2(diagram, boxes2, direction) {
   };
   return makeRoomFor(layout, [...spanned.grown, ...layout.edges.flatMap((edge) => edge.label === null ? [] : [edge.label.rect])]);
 }
+var offSquare = (size) => Math.abs(Math.log(Math.max(1, size.width) / Math.max(1, size.height)));
 async function layoutFlowOnce(diagram) {
   const boxes2 = evenFlowBoxes(diagram, new Map(diagram.nodes.map((node3) => [node3.id, sizeNode(node3)])));
   if (diagram.direction !== "auto") return layoutWith2(diagram, boxes2, diagram.direction);
+  if (diagram.fit === "wide") return layoutWith2(diagram, boxes2, "right");
+  if (diagram.fit === "tall") return layoutWith2(diagram, boxes2, "down");
   if (isTooWideSideways(diagram, boxes2)) return layoutWith2(diagram, boxes2, "down");
   const horizontal = await layoutWith2(diagram, boxes2, "right");
+  if (diagram.fit === "square") {
+    const vertical2 = await layoutWith2(diagram, boxes2, "down");
+    return offSquare(vertical2.size) < offSquare(horizontal.size) ? vertical2 : horizontal;
+  }
   if (horizontal.size.width <= CANVAS_METRICS.targetWidth) return horizontal;
   const vertical = await layoutWith2(diagram, boxes2, "down");
   return vertical.size.width < horizontal.size.width ? vertical : horizontal;
@@ -43279,9 +43451,11 @@ function overlayLine(overlay, memberLabel) {
   return `${kind}: ${overlay.label}${detail}${stack2}, around ${overlay.members.map(memberLabel).join(", ")}`;
 }
 function lineNote(edge) {
-  if (edge.role === void 0) return LINE_NOTE[edge.line];
+  const main = edge.isMain === true ? "main path" : null;
+  if (edge.role === void 0) return main === null ? LINE_NOTE[edge.line] : ` (${edge.line === "solid" ? "" : `${edge.line}, `}${main})`;
   const role = `${LINE_ROLE_SPECS[edge.role].words} line`;
-  return edge.line === "solid" ? ` (${role})` : ` (${edge.line}, ${role})`;
+  const words2 = [edge.line === "solid" ? null : edge.line, role, main].filter((word2) => word2 !== null);
+  return ` (${words2.join(", ")})`;
 }
 function summarizeFlow(diagram) {
   const title = diagram.meta.title ?? "Flow diagram";
@@ -43555,8 +43729,8 @@ var MOVED_GROUP_OPTIONS = { boundary: "A trust boundary is now a group type: wri
 function spanOf7(token) {
   return token?.kind === "string" ? { line: token.line, column: token.column, length: token.length } : null;
 }
-var EDGE_OPTIONS = ["icon", "role", ...LINE_MOTION_OPTIONS];
-var HEADER_OPTIONS4 = ["direction", "desc", "provider", "legend", "legendparts", "icons", ...HEADER_MOTION_OPTIONS];
+var EDGE_OPTIONS = ["icon", "role", "main", ...LINE_MOTION_OPTIONS];
+var HEADER_OPTIONS4 = ["direction", "desc", "provider", "legend", "legendparts", "spacing", "edges", "fit", "icons", ...HEADER_MOTION_OPTIONS];
 var PLAIN_NODE_TYPES = /* @__PURE__ */ new Set(["decision", "terminal", "step"]);
 var ROLE_NODE_TYPES = /* @__PURE__ */ new Set(["service", "external"]);
 function resolveDirection(option2, state) {
@@ -43584,8 +43758,46 @@ function parseFlowHeader(line5, state) {
   state.motion = readHeaderMotion(options3, state.report);
   state.legend = readLegend(findOption(options3, "legend"), state.report);
   state.legendParts = readLegendParts(findOption(options3, "legendparts"), state.report);
+  state.spacing = readChoice(findOption(options3, "spacing"), SPACING_VALUES, DEFAULT_SPACING, state, "compact packs the boxes closer, roomy spreads them; normal is the default.");
+  state.edgeShape = readChoice(findOption(options3, "edges"), EDGE_SHAPES, DEFAULT_EDGE_SHAPE, state, "spline draws curves, straight draws slanted lines; orthogonal is the default.");
+  state.fit = readChoice(findOption(options3, "fit"), FIT_VALUES, DEFAULT_FIT, state, "wide lays it across for a slide, tall down for a phone, square nearer a square; auto is the default.");
   readIconMode(findOption(options3, "icons"), state);
-  rejectTrailing(cursor, state, 'The header is: flow "Title" direction=auto provider=aws animate=on numbered=on start=1 legend=on legendparts=all icons=auto desc="Plain-language summary"');
+  rejectTrailing(cursor, state, 'The header is: flow "Title" direction=auto fit=auto provider=aws animate=on numbered=on start=1 legend=on legendparts=all spacing=normal edges=orthogonal icons=auto desc="Plain-language summary"');
+}
+function readChoice(option2, values, fallback, state, meaning) {
+  if (option2 === void 0 || option2.value === fallback) return null;
+  const found = values.find((value) => value === option2.value);
+  if (found !== void 0) return found;
+  state.report.push(
+    errorAt(DIAGNOSTIC_CODES.badOptionValue, `Option "${option2.key}" takes ${joinWords([...values], "or")}, found "${option2.value}"`, option2.valueToken, `${didYouMean(option2.value, values)} ${meaning}`)
+  );
+  return null;
+}
+function readMain(option2, state) {
+  if (option2 === void 0 || option2.value === "off") return void 0;
+  if (option2.value === "on") return true;
+  state.report.push(errorAt(DIAGNOSTIC_CODES.badOptionValue, `Option "main" takes on or off, found "${option2.value}"`, option2.valueToken, "main=on draws the line as part of the main path: heavier, and kept straight."));
+  return void 0;
+}
+function parseAlignStatement(cursor, state, line5) {
+  const keyword = cursor.next();
+  const members2 = [];
+  for (let token = cursor.peek(); token !== null; token = cursor.peek()) {
+    if (token.kind === "word") members2.push(token);
+    else if (token.kind !== "comma") break;
+    cursor.next();
+  }
+  rejectTrailing(cursor, state, "Write: align api, worker, cache");
+  if (keyword === null) return;
+  if (members2.length < 2) {
+    state.report.push(errorAt(DIAGNOSTIC_CODES.syntax, "align needs two nodes or more", members2[0] ?? cursor.endPosition(line5), "Name the nodes to keep in one rank: align api, worker"));
+    return;
+  }
+  if (members2.length > ALIGN_LIMIT) {
+    state.report.push(errorAt(DIAGNOSTIC_CODES.syntax, `align names ${members2.length} nodes (limit ${ALIGN_LIMIT})`, members2[ALIGN_LIMIT] ?? keyword, "Split it, or put the nodes in a group, which keeps them together."));
+    return;
+  }
+  state.aligns.push({ members: members2, at: { line: keyword.line, column: keyword.column, length: keyword.length } });
 }
 function parseDescStatement(cursor, state, line5) {
   cursor.next();
@@ -43694,7 +43906,8 @@ function parseEdgeStatement(cursor, state, line5) {
   const spec = ARROW_SPECS[arrow.text];
   const motion = readLineMotion(options3, state.motion, spec.heads, from, state.report);
   const role = readLineRole(findOption(options3, "role"), state.report);
-  state.edges.push({ from: from.text, to: to.text, fromToken: from, toToken: to, label, icon, ...iconOption2 === void 0 ? {} : { hasOwnIcon: true }, line: spec.line, heads: spec.heads, ...motion, ...role === void 0 ? {} : { role } });
+  const isMain = readMain(findOption(options3, "main"), state);
+  state.edges.push({ from: from.text, to: to.text, fromToken: from, toToken: to, label, icon, ...iconOption2 === void 0 ? {} : { hasOwnIcon: true }, line: spec.line, heads: spec.heads, ...motion, ...role === void 0 ? {} : { role }, ...isMain === void 0 ? {} : { isMain } });
 }
 function parseOverlayStatement(cursor, state, line5, parent) {
   cursor.next();
@@ -43790,7 +44003,7 @@ function resolveOverlays(state) {
 }
 
 // ../../packages/diagrams/src/parse/flow-parser.ts
-var STATEMENT_KEYWORDS2 = ["node", "group", "overlay", "desc"];
+var STATEMENT_KEYWORDS2 = ["node", "group", "overlay", "align", "desc"];
 function dispatchStatement(line5, state, scopes) {
   const cursor = new TokenCursor(line5.tokens);
   const first = line5.tokens[0];
@@ -43804,6 +44017,8 @@ function dispatchStatement(line5, state, scopes) {
     if (opened !== null) scopes.push({ groupId: opened, openedAt: line5 });
   } else if (first.kind === "word" && first.text === "overlay") {
     parseOverlayStatement(cursor, state, line5.line, current2.groupId);
+  } else if (first.kind === "word" && first.text === "align") {
+    parseAlignStatement(cursor, state, line5.line);
   } else if (first.kind === "word" && first.text === "desc") {
     parseDescStatement(cursor, state, line5.line);
   } else if (first.kind === "word") {
@@ -43838,6 +44053,30 @@ function queueArrowIcon(edge, state) {
   if (typeOf2(edge.from) === "queue") return EDGE_STYLES.receives.icon;
   return null;
 }
+function withAligns(aligns) {
+  return aligns.length === 0 ? {} : { aligns };
+}
+function resolveAligns(state) {
+  const nodeIds = state.nodes.map((node3) => node3.id);
+  const known3 = new Set(nodeIds);
+  const placed = /* @__PURE__ */ new Set();
+  const resolved2 = [];
+  for (const align of state.aligns) {
+    const members2 = [];
+    for (const token of align.members) {
+      if (!known3.has(token.text)) {
+        const declaration = state.declared.get(token.text);
+        const hint2 = declaration?.kind === "group" || declaration?.kind === "overlay" ? `"${token.text}" is ${declaration.kind === "group" ? "a group" : "an overlay"}; align lines up nodes.` : didYouMean(token.text, nodeIds);
+        state.report.push(errorAt(DIAGNOSTIC_CODES.unknownNode, `Unknown node "${token.text}"`, token, hint2));
+      } else if (placed.has(token.text) || members2.includes(token.text)) {
+        state.report.push(errorAt(DIAGNOSTIC_CODES.syntax, `"${token.text}" is aligned twice`, token, "A node sits in one rank: name it in one align statement, once."));
+      } else members2.push(token.text);
+    }
+    for (const member of members2) placed.add(member);
+    if (members2.length >= 2) resolved2.push({ members: members2.map(toNodeId), at: align.at });
+  }
+  return resolved2;
+}
 function resolveEdges(state) {
   const nodeIds = state.nodes.map((node3) => node3.id);
   const known3 = new Set(nodeIds);
@@ -43864,7 +44103,8 @@ function resolveEdges(state) {
         heads: edge.heads,
         ...edge.isAnimated === void 0 ? {} : { isAnimated: edge.isAnimated },
         ...edge.step === void 0 ? {} : { step: edge.step },
-        ...edge.role === void 0 ? {} : { role: edge.role }
+        ...edge.role === void 0 ? {} : { role: edge.role },
+        ...edge.isMain === void 0 ? {} : { isMain: edge.isMain }
       });
     }
   }
@@ -43879,6 +44119,10 @@ function parseFlow(lines, report3) {
     motion: stillMotion(),
     legend: null,
     legendParts: null,
+    spacing: null,
+    edgeShape: null,
+    fit: null,
+    aligns: [],
     nodes: [],
     groups: [],
     overlays: [],
@@ -43909,7 +44153,11 @@ function parseFlow(lines, report3) {
     overlays: resolveOverlays(state),
     edges: resolveEdges(state),
     ...state.legend === null ? {} : { legend: state.legend },
-    ...state.legendParts === null ? {} : { legendParts: state.legendParts }
+    ...state.legendParts === null ? {} : { legendParts: state.legendParts },
+    ...state.spacing === null ? {} : { spacing: state.spacing },
+    ...state.edgeShape === null ? {} : { edgeShape: state.edgeShape },
+    ...state.fit === null ? {} : { fit: state.fit },
+    ...withAligns(resolveAligns(state))
   };
 }
 
@@ -44106,7 +44354,7 @@ var FRAME_DASHES2 = { solid: null, dashed: GROUP_METRICS.dashPattern, dotted: GR
 function paintLineSample(sample2, box, theme) {
   const middle2 = box.y + box.height / 2;
   const color = sample2.role === void 0 ? theme.edge : roleColor(sample2.role, theme);
-  return paintArrowLine([{ x: box.x, y: middle2 }, { x: box.x + box.width, y: middle2 }], { color, line: sample2.line, heads: sample2.heads });
+  return paintArrowLine([{ x: box.x, y: middle2 }, { x: box.x + box.width, y: middle2 }], { color, line: sample2.line, heads: sample2.heads, ...sample2.isMain === true ? { strokeWidth: EDGE_METRICS.mainStrokeWidth } : {} });
 }
 function paintBoxSample(sample2, box, theme) {
   const defaults = FLOW_NODE_TYPE_DEFAULTS[sample2.type];
@@ -44219,7 +44467,7 @@ function renderFlowSvg(diagram, layout, theme, options3) {
   const hops = findFlowHops(layout.edges, layout.nodes);
   const edges = layout.edges.flatMap((placed) => {
     const edge = edgeById.get(placed.id);
-    return edge === void 0 ? [] : [paintEdge(edge, placed, theme, hops.get(placed.id))];
+    return edge === void 0 ? [] : [paintEdge(edge, placed, theme, hops.get(placed.id), diagram.edgeShape)];
   });
   const nodes = layout.nodes.flatMap((placed) => {
     const node3 = nodeById.get(placed.id);
@@ -44393,6 +44641,15 @@ function widthHint(diagram) {
   const fix = sideways ? `Add direction=down to the header line so the diagram grows downwards, ${split}, or shorten labels.` : `It is already as narrow as the layout can draw it, so ${split}, or shorten the longest labels.`;
   return `${fix} On a page wider than ${CANVAS_METRICS.targetWidth}px it draws at full size, so its text stays 12px there.`;
 }
+function alignWarnings(diagram) {
+  const groupOf = new Map(diagram.nodes.map((node3) => [node3.id, node3.group]));
+  return (diagram.aligns ?? []).flatMap((align) => {
+    const groups = new Set(align.members.map((member) => groupOf.get(member) ?? null));
+    if (groups.size <= 1) return [];
+    const where = align.members.map((member) => `${member} ${groupOf.get(member) === null || groupOf.get(member) === void 0 ? "outside any group" : `in ${groupOf.get(member)}`}`).join(", ");
+    return [warningAt(DIAGNOSTIC_CODES.alignAcrossGroups, `align may not hold across groups: ${where}`, align.at, "A group's frame takes layers of its own. Put the nodes in one group, or align nodes that share one.")];
+  });
+}
 function lintFlow(diagram, measure) {
   const general = present([
     densityWarning3(diagram),
@@ -44401,7 +44658,7 @@ function lintFlow(diagram, measure) {
     shortenedWarning(shortenedIds3(diagram)),
     widthWarning(measure.size, widthHint(diagram))
   ]);
-  return [...general, ...overlayWarnings(diagram, measure.overlayCovers), ...suggestGroupTypes(diagram), ...suggestIcons(diagram), ...suggestLineRoles(diagram)];
+  return [...general, ...alignWarnings(diagram), ...overlayWarnings(diagram, measure.overlayCovers), ...suggestGroupTypes(diagram), ...suggestIcons(diagram), ...suggestLineRoles(diagram)];
 }
 
 // ../../packages/diagrams/src/import/counts.ts
@@ -50069,7 +50326,7 @@ var HEADER_SYNTAX = 'The header is: journey "Title" desc="Plain-language summary
 var SECTION_SYNTAX = 'A section is: section "Stage name" tone=blue {  with its tasks on the lines below and a } to close it';
 var ACTOR_SYNTAX = 'An actor is: actor "Customer" tone=blue';
 var spanOf15 = (token) => ({ line: token.line, column: token.column, length: token.length });
-function readChoice(option2, choices, fallback, state) {
+function readChoice2(option2, choices, fallback, state) {
   if (option2 === void 0) return fallback;
   const chosen = choices.find((choice3) => choice3 === option2.value);
   if (chosen !== void 0) return chosen;
@@ -50086,8 +50343,8 @@ function parseJourneyHeader(line5, state) {
   }
   const options3 = readOptions(cursor, HEADER_OPTIONS6, state.report);
   state.description = findOption(options3, "desc")?.value ?? state.description;
-  state.marks = readChoice(findOption(options3, "marks"), MARKS, "faces", state);
-  state.hasLegend = readChoice(findOption(options3, "legend"), SWITCH, "on", state) === "on";
+  state.marks = readChoice2(findOption(options3, "marks"), MARKS, "faces", state);
+  state.hasLegend = readChoice2(findOption(options3, "legend"), SWITCH, "on", state) === "on";
   rejectTrailing(cursor, state, HEADER_SYNTAX);
 }
 function parseDescStatement2(cursor, state, line5) {
@@ -56226,7 +56483,7 @@ function outlinePie(diagram) {
 // ../../packages/diagrams/src/kinds/pie/parse-header.ts
 var HEADER_HINT7 = 'The header is: pie "Title" unit="%" total="Visits" sort=desc values=on fold=5 labels=outside icons=auto desc="Plain-language summary"';
 var MAX_UNIT_LENGTH = 12;
-function readChoice2(option2, choices, what, state) {
+function readChoice3(option2, choices, what, state) {
   const choice3 = choices.find((candidate2) => candidate2 === option2.value);
   if (choice3 !== void 0) return choice3;
   state.report.push(errorAt(DIAGNOSTIC_CODES.badOptionValue, `Unknown ${what} "${option2.value}"`, option2.valueToken, didYouMean(option2.value, choices)));
@@ -56258,11 +56515,11 @@ function parsePieHeader(line5, state) {
     if (option2.key === "desc") state.description = option2.value;
     else if (option2.key === "unit") state.unit = readUnit2(option2, state);
     else if (option2.key === "total") state.total = option2.value.trim() === "" ? null : option2.value.trim();
-    else if (option2.key === "sort") state.sort = readChoice2(option2, PIE_SORTS, "sort order", state) ?? state.sort;
-    else if (option2.key === "values") state.showValues = (readChoice2(option2, SWITCH_VALUES, "switch", state) ?? "on") === "on";
+    else if (option2.key === "sort") state.sort = readChoice3(option2, PIE_SORTS, "sort order", state) ?? state.sort;
+    else if (option2.key === "values") state.showValues = (readChoice3(option2, SWITCH_VALUES, "switch", state) ?? "on") === "on";
     else if (option2.key === "fold") state.fold = readFold(option2, state);
     else if (option2.key === "icons") readIconMode(option2, state);
-    else if (option2.key === "labels") state.labels = readChoice2(option2, PIE_LABELS, "label placement", state) ?? state.labels;
+    else if (option2.key === "labels") state.labels = readChoice3(option2, PIE_LABELS, "label placement", state) ?? state.labels;
   }
   rejectTrailing(cursor, state, HEADER_HINT7);
 }
@@ -60674,7 +60931,7 @@ function parseFlowStatement(cursor, state, line5) {
 
 // ../../packages/diagrams/src/kinds/sankey/parse-header.ts
 var HEADER_HINT10 = 'The header is: sankey "Title" unit="req/s" values=on sort=desc align=justify icons=auto desc="Plain-language summary"';
-function readChoice3(option2, choices, what, state) {
+function readChoice4(option2, choices, what, state) {
   const choice3 = choices.find((candidate2) => candidate2 === option2.value);
   if (choice3 !== void 0) return choice3;
   state.report.push(errorAt(DIAGNOSTIC_CODES.badOptionValue, `Unknown ${what} "${option2.value}"`, option2.valueToken, didYouMean(option2.value, choices)));
@@ -60700,10 +60957,10 @@ function parseSankeyHeader(line5, state) {
   for (const option2 of readOptions(cursor, HEADER_OPTIONS14, state.report)) {
     if (option2.key === "desc") state.description = option2.value;
     else if (option2.key === "unit") state.unit = readUnit3(option2, state);
-    else if (option2.key === "values") state.showValues = (readChoice3(option2, SWITCH_VALUES, "switch", state) ?? "on") === "on";
+    else if (option2.key === "values") state.showValues = (readChoice4(option2, SWITCH_VALUES, "switch", state) ?? "on") === "on";
     else if (option2.key === "icons") readIconMode(option2, state);
-    else if (option2.key === "sort") state.sort = readChoice3(option2, SANKEY_SORTS, "sort order", state) ?? state.sort;
-    else state.align = readChoice3(option2, SANKEY_ALIGNS, "alignment", state) ?? state.align;
+    else if (option2.key === "sort") state.sort = readChoice4(option2, SANKEY_SORTS, "sort order", state) ?? state.sort;
+    else state.align = readChoice4(option2, SANKEY_ALIGNS, "alignment", state) ?? state.align;
   }
   rejectTrailing(cursor, state, HEADER_HINT10);
 }
@@ -75084,7 +75341,7 @@ function parseYAxis(cursor, state, line5) {
 
 // ../../packages/diagrams/src/kinds/xychart/parse-header.ts
 var HEADER_HINT15 = 'The header is: xychart "Title" direction=vertical stack=off values=on icons=auto desc="Plain-language summary"';
-function readChoice4(option2, choices, what, state) {
+function readChoice5(option2, choices, what, state) {
   const choice3 = choices.find((candidate2) => candidate2 === option2.value);
   if (choice3 !== void 0) return choice3;
   state.report.push(errorAt(DIAGNOSTIC_CODES.badOptionValue, `Unknown ${what} "${option2.value}"`, option2.valueToken, didYouMean(option2.value, choices)));
@@ -75100,10 +75357,10 @@ function parseXychartHeader(line5, state) {
   }
   for (const option2 of readOptions(cursor, HEADER_OPTIONS22, state.report)) {
     if (option2.key === "desc") state.description = option2.value;
-    else if (option2.key === "direction") state.direction = readChoice4(option2, DIRECTIONS3, "direction", state) ?? state.direction;
-    else if (option2.key === "stack") state.isStacked = (readChoice4(option2, SWITCH_VALUES, "switch", state) ?? "off") === "on";
+    else if (option2.key === "direction") state.direction = readChoice5(option2, DIRECTIONS3, "direction", state) ?? state.direction;
+    else if (option2.key === "stack") state.isStacked = (readChoice5(option2, SWITCH_VALUES, "switch", state) ?? "off") === "on";
     else if (option2.key === "icons") readIconMode(option2, state);
-    else if (option2.key === "values") state.showValues = (readChoice4(option2, SWITCH_VALUES, "switch", state) ?? "on") === "on";
+    else if (option2.key === "values") state.showValues = (readChoice5(option2, SWITCH_VALUES, "switch", state) ?? "on") === "on";
   }
   rejectTrailing(cursor, state, HEADER_HINT15);
 }
@@ -75152,7 +75409,7 @@ function parseThreshold(cursor, state, line5) {
   rejectTrailing(cursor, state, THRESHOLD_HINT);
   const toneOption = findOption(options3, "tone");
   const breachOption = findOption(options3, "breach");
-  const breach = breachOption === void 0 ? "above" : readChoice4(breachOption, BREACHES, "breach", state) ?? "above";
+  const breach = breachOption === void 0 ? "above" : readChoice5(breachOption, BREACHES, "breach", state) ?? "above";
   if (name2 !== null && value !== null) state.thresholds.push({ label: name2.text, value, tone: toneOption === void 0 ? THRESHOLD_TONE : resolveTone(toneOption, THRESHOLD_TONE, state), breach, at: name2.at });
 }
 function parseNote5(cursor, state, line5) {
@@ -75701,6 +75958,7 @@ function buildVocabulary() {
       meaning: 'A dashed frame around nodes or groups it does not own, wherever layout puts them: a scaling group across two zones, or a redundant set inside a tier. Write it after the members, one line: overlay id "Name" members=a,b type=scale-group. Use a group when the frame should own what is inside it.'
     },
     lineOptions: LINE_OPTION_SPECS.map((spec) => ({ ...spec })),
+    flowLook: FLOW_LOOK_SPECS.map((spec) => ({ ...spec })),
     // The commonest outcomes, enough to show the pattern: topic icon-words lists every label.
     labelIcons: OUTCOME_EXAMPLES.map((label) => ({ label, icon: LABEL_ICON_DEFAULTS[label] ?? "status:info" })),
     // A few phrases of each relationship, enough to show the pattern: topic icon-words and the generated reference hold every one.
@@ -75750,6 +76008,7 @@ var PLACEMENT = {
   nodeTypes: ["overview", "flow", "sequence"],
   arrows: ["overview", "flow", "sequence"],
   lineOptions: ["overview", "flow", "sequence"],
+  flowLook: ["flow"],
   labelIcons: ["overview", "flow"],
   verbIcons: ["flow"],
   style: ["overview", "flow"],
@@ -75765,7 +76024,7 @@ var PLACEMENT = {
   overlay: ["flow"],
   diagnosticCodes: "docs"
 };
-var KIND_ONLY_TABLES = { group: "group types, overlays, and a complete cloud architecture example" };
+var KIND_ONLY_TABLES = { group: "group types, overlays, and a complete cloud architecture example", flowLook: "the layout options (spacing, line shape, fit, align, main path)" };
 function tablesFor(full, scope) {
   const held2 = Object.entries(full).filter(([part]) => {
     const place3 = PLACEMENT[part];
@@ -76584,6 +76843,55 @@ async function compareDiagrams(input2, deps = {}) {
 // ../../packages/diagrams/src/services/classification-stamp.ts
 var CLASSIFICATION_ATTRIBUTE = "data-classification";
 var ELEMENT_PATTERN = new RegExp(`<metadata ${CLASSIFICATION_ATTRIBUTE}="[^"]*"/>`, "g");
+
+// ../../packages/diagrams/src/edit/outcome.ts
+function refused(message2, hint2) {
+  return { ok: false, message: message2, hint: hint2 };
+}
+var REFERENCE_OPTIONS = /* @__PURE__ */ new Set(["after", "from", "to", "at", "actors", "parent"]);
+
+// ../../packages/diagrams/src/edit/references.ts
+var TYPE_WORDS2 = new Set(FLOW_NODE_TYPES);
+function optionKeyOf(tokens2, index2) {
+  let at3 = index2 - 1;
+  while (tokens2[index2]?.kind === "word" && at3 >= 1 && tokens2[at3]?.kind === "comma" && tokens2[at3 - 1]?.kind === "word") at3 -= 2;
+  if (tokens2[at3]?.kind !== "equals") return null;
+  const key = tokens2[at3 - 1];
+  return key?.kind === "word" ? key.text : null;
+}
+function idReferences(tokens2, name2, isHeader) {
+  const isEdge = tokens2.some((token) => token.kind === "arrow");
+  const found = [];
+  tokens2.forEach((token, index2) => {
+    if (token.kind !== "word") return;
+    if (isHeader || tokens2[index2 + 1]?.kind === "equals") return;
+    if (index2 === 0 && !isEdge && statementKeywords().has(token.text)) return;
+    const key = optionKeyOf(tokens2, index2);
+    if (key !== null && !REFERENCE_OPTIONS.has(key)) return;
+    if (key === null && index2 >= 2 && !isEdge && TYPE_WORDS2.has(token.text)) return;
+    if (token.text === name2) found.push({ token, suffix: "" });
+    else if (token.text.startsWith(`${name2}.`)) found.push({ token, suffix: token.text.slice(name2.length) });
+  });
+  return found;
+}
+function labelReferences(tokens2, label, to, quote3) {
+  const found = [];
+  tokens2.forEach((token, index2) => {
+    if (token.kind !== "string") return;
+    const key = optionKeyOf(tokens2, index2);
+    const start2 = token.column - 1;
+    const end = start2 + token.length;
+    if (key === null && token.text === label) found.push({ start: start2, end, text: quote3(to) });
+    if (key === null || !REFERENCE_OPTIONS.has(key)) return;
+    const items2 = token.text.split(",").map((item2) => item2.trim());
+    if (!items2.includes(label)) return;
+    found.push({ start: start2, end, text: quote3(items2.map((item2) => item2 === label ? to : item2).join(", ")) });
+  });
+  return found;
+}
+function spliced(line5, splices) {
+  return [...splices].sort((a, b) => b.start - a.start).reduce((text5, splice) => `${text5.slice(0, splice.start)}${splice.text}${text5.slice(splice.end)}`, line5);
+}
 
 // ../../packages/diagrams/src/services/outline-diagram-source.ts
 function outlineDiagramSource(source) {
@@ -77473,7 +77781,7 @@ var SourceSchema = external_exports.strictObject({
 }, { error: movedKeysError({ schemes: "A source's schemes is now scheme, which takes auto, light, dark, or light-and-dark" }) }).meta({ id: "Source", description: "One diagram generated from files of the repository and kept in step with them." });
 
 // ../../packages/diagrams/src/settings/schema.ts
-var SHARED_DEFAULT_OPTIONS = ["icons", "legend", "legendparts", "direction", "animate", "numbered", "theme"];
+var SHARED_DEFAULT_OPTIONS = ["icons", "legend", "legendparts", "spacing", "edges", "fit", "direction", "animate", "numbered", "theme"];
 var optionKey = external_exports.string().regex(/^[a-z][a-z0-9-]*$/, "Write the header option as the header writes it, such as direction or layout").refine((key) => key !== "title", { message: "A title is the diagram's own; it has no default" });
 var optionValue = external_exports.union([external_exports.string().min(1).max(SETTINGS_FILE.maxValueLength), external_exports.number(), external_exports.boolean()]);
 var MOVED_DEFAULTS = {
@@ -77488,6 +77796,9 @@ var DefaultsSchema = external_exports.strictObject({
   icons: external_exports.enum(ICON_MODES).optional().describe("icons= on every header that takes it: auto gives an item the icon its label names, off keeps items plain."),
   legend: external_exports.enum(LEGEND_VALUES).optional().describe("legend= on every header that takes it: on (the default) draws the legend of what the picture uses, centred; left or right aligns it; off draws none."),
   legendparts: external_exports.union([external_exports.enum(["all", "basic"]), external_exports.array(external_exports.enum(LEGEND_SECTIONS)).min(1).max(LEGEND_SECTIONS.length)]).optional().describe('legendparts= on every header that takes it: which parts the legend shows, "all", "basic" (every part but the icons), or a list such as ["lines", "boxes"].'),
+  spacing: external_exports.enum(SPACING_VALUES).optional().describe("spacing= on every header that takes it: compact packs the boxes closer, roomy spreads them, normal is the default."),
+  edges: external_exports.enum(EDGE_SHAPES).optional().describe("edges= on every header that takes it: orthogonal (the default), spline for smooth curves, or straight for slanted lines."),
+  fit: external_exports.enum(FIT_VALUES).optional().describe("fit= on every header that takes it: the shape direction=auto lays a picture out for, wide (slides), tall (phones), square, or auto (the default)."),
   direction: external_exports.enum(DIRECTIONS).optional().describe("direction= on every header that takes this value."),
   animate: external_exports.enum(SWITCH_VALUES).optional().describe("animate= on every header that takes it: on moves dashes along every line."),
   numbered: external_exports.enum(SWITCH_VALUES).optional().describe("numbered= on every header that takes it: on numbers every line in the order written."),
@@ -77572,7 +77883,7 @@ function applyDefaults(source, defaults) {
     const candidate2 = withOption(current2, header, key, written2(value));
     const after = headerErrors(candidate2, header.line);
     if (after > errors) {
-      if (isOwn) notes.push(refused(kindWord2.text, key, written2(value), { line: header.line, column: kindWord2.column, length: kindWord2.length }));
+      if (isOwn) notes.push(refused2(kindWord2.text, key, written2(value), { line: header.line, column: kindWord2.column, length: kindWord2.length }));
       continue;
     }
     current2 = candidate2;
@@ -77592,7 +77903,7 @@ function enforcedOver(key, was, value, at3) {
     `The repository's settings or the organisation enforce ${key}=${value}; drop ${key}=${was} from the header, or ask the organisation's owner.`
   );
 }
-function refused(kind, key, value, at3) {
+function refused2(kind, key, value, at3) {
   return warningAt(
     DIAGNOSTIC_CODES.settingIgnored,
     `The settings give ${kind} diagrams ${key}=${value}, which a ${kind} header does not take, so it was left out`,
@@ -77915,6 +78226,13 @@ var SPARSE_SHARE = 0.88;
 var SERIES_LIMIT = 6;
 var SLICE_LIMIT = 8;
 var DETOUR_LIMIT = 1.4;
+function spacingOption(spacing, value) {
+  return spacing === null || spacing === value ? null : `spacing=${value}`;
+}
+function orSpacing(fix, spacing, value) {
+  const option2 = spacingOption(spacing, value);
+  return option2 === null ? fix : `${fix}, or add ${option2} to the header line`;
+}
 var cap = (value, most) => Math.min(most, Math.max(0, value));
 function turnOption(direction, wantsTaller) {
   if (direction === null) return null;
@@ -77968,7 +78286,7 @@ function labelFinding(m, context) {
   const pair2 = context.measured.labelPair;
   const longer = pair2 === null ? null : [...pair2].filter((label) => label.text !== "").sort((a, b) => b.text.length - a.text.length)[0];
   const fix = longer === void 0 || longer === null ? "shorten the edge labels, or move detail into a note" : `shorten label ${quote2(longer.text)}, or move its detail into sub= or a note`;
-  return { measure: "labelOverlaps", penalty: cap(m.labelOverlaps * 8, 30), hint: `${m.labelOverlaps === 1 ? "Two labels overlap" : `${m.labelOverlaps} labels overlap`}: ${fix}.` };
+  return { measure: "labelOverlaps", penalty: cap(m.labelOverlaps * 8, 30), hint: `${m.labelOverlaps === 1 ? "Two labels overlap" : `${m.labelOverlaps} labels overlap`}: ${orSpacing(fix, context.spacing, "roomy")}.` };
 }
 function textFinding(m, context) {
   if (m.smallestTextPx === 0 || m.smallestTextPx >= BODY_PX - 0.05) return null;
@@ -77977,7 +78295,7 @@ function textFinding(m, context) {
   const turn = m.aspectRatio > 1 ? turnHint(context.direction, true) : null;
   const split = group2 !== null && group2.boxes >= 4 ? `split group ${group2.id} (${group2.boxes} boxes) into its own diagram` : "split the diagram in two";
   const fix = turn === null ? split : `${turn}, or ${split}`;
-  return { measure: "smallestTextPx", penalty, hint: `Text shrinks to ${m.smallestTextPx}px in an 880px column: ${fix}.` };
+  return { measure: "smallestTextPx", penalty, hint: `Text shrinks to ${m.smallestTextPx}px in an 880px column: ${orSpacing(fix, context.spacing, "compact")}.` };
 }
 function shapeFinding(m, context) {
   if (m.aspectRatio === 0) return null;
@@ -77992,7 +78310,7 @@ function sparseFinding(m, context) {
   if (m.boxes < 3 || m.emptySpace <= SPARSE_SHARE) return null;
   const turn = turnHint(context.direction, m.aspectRatio > 1);
   const fix = turn ?? "put the boxes that belong together in one group";
-  return { measure: "emptySpace", penalty: cap((m.emptySpace - SPARSE_SHARE) * 60, 10), hint: `${Math.round(m.emptySpace * 100)}% of the picture is empty: ${fix}.` };
+  return { measure: "emptySpace", penalty: cap((m.emptySpace - SPARSE_SHARE) * 60, 10), hint: `${Math.round(m.emptySpace * 100)}% of the picture is empty: ${orSpacing(fix, context.spacing, "compact")}.` };
 }
 function chartFinding(m) {
   if (m.series > SERIES_LIMIT) {
@@ -78584,6 +78902,10 @@ function directionOf7(diagram) {
   const direction = diagram.direction;
   return typeof direction === "string" ? direction : null;
 }
+function spacingOf(diagram) {
+  if (diagram.kind !== "flow") return null;
+  return diagram.spacing ?? DEFAULT_SPACING;
+}
 function lineOf(score, grade, hints) {
   const head = `Look: ${grade} (${score}/100)`;
   const first = hints[0];
@@ -78594,7 +78916,7 @@ function qualityOf(diagram, svg) {
   const measured = measureScene(scene);
   const own2 = moduleOf(diagram).quality?.(diagram, scene) ?? {};
   const ignore = new Set(own2.ignore ?? []);
-  const findings = [...sharedFindings(measured.measures, { direction: directionOf7(diagram), measured }, ignore), ...own2.findings ?? []].filter((finding2) => finding2.penalty > 0).sort((a, b) => b.penalty - a.penalty || a.measure.localeCompare(b.measure));
+  const findings = [...sharedFindings(measured.measures, { direction: directionOf7(diagram), spacing: spacingOf(diagram), measured }, ignore), ...own2.findings ?? []].filter((finding2) => finding2.penalty > 0).sort((a, b) => b.penalty - a.penalty || a.measure.localeCompare(b.measure));
   const penalty = findings.reduce((total, finding2) => total + finding2.penalty, 0);
   const score = Math.max(0, Math.min(100, Math.round(100 - penalty)));
   const grade = gradeOf(score);
@@ -78941,6 +79263,13 @@ var LineOptionSchema = external_exports.object({
   meaning: external_exports.string().describe("What it does, and the cases where it is refused."),
   example: external_exports.string().describe("One line that parses.")
 });
+var FlowLookSchema = external_exports.object({
+  key: external_exports.string().describe("The option or statement as written, such as spacing or align."),
+  scope: external_exports.enum(["header", "line", "statement"]).describe("header: on the flow header line. line: on an edge. statement: a line of its own."),
+  values: external_exports.string().describe("What it takes."),
+  meaning: external_exports.string().describe("What it does."),
+  example: external_exports.string().describe("One line that parses.")
+});
 var KindStatementSchema = external_exports.object({
   syntax: external_exports.string().describe('The statement with its parts named, such as: task <id> "Name" days=<n>.'),
   meaning: external_exports.string().describe("What the statement does, and what it needs."),
@@ -78980,6 +79309,7 @@ var VocabularyResponseSchema = external_exports.object({
   iconProviders: external_exports.array(IconProviderSchema).describe("Cloud and platform providers, each an icon set holding the provider (set:cloud) and its products."),
   overlay: OverlaySchema.describe("A dashed frame around members that may sit in different groups; it owns none of them."),
   group: GroupSchema.describe("How a flow group looks and what it accepts; its corner tab shows its icon and name."),
+  flowLook: external_exports.array(FlowLookSchema).describe("Options that shape a flow diagram: spacing=, edges= and fit= on the header, main=on on an edge, and the align statement."),
   lineOptions: external_exports.array(LineOptionSchema).describe("Options that animate a line (animate=on makes dashes travel toward the arrowhead) or number the steps of a flow or sequence (numbered=on, start=, and step= on a line). All are off by default."),
   labelIcons: external_exports.array(LabelIconSchema).describe("Edge labels that name an outcome and get its status icon automatically (a tick for yes, a cross for no, a clock for expired); one per icon in a kind answer, every one in topic icon-words. icon=none on the edge removes it."),
   verbIcons: external_exports.array(external_exports.object({ icon: external_exports.string().describe("The icon drawn in the label."), words: external_exports.array(external_exports.string()).describe('Phrases that draw it: the whole label, or its first words followed by what is acted on ("reads orders").') })).describe("The icons a flow edge label draws when it names a relationship with a verb. icon= on the edge wins, icon=none removes it, and icons=off on the header turns them all off."),
@@ -79095,7 +79425,8 @@ var ImportSourceInputSchema = external_exports.object({
     })
   ).optional().describe("The files of a folder, for a format that spans files; the others read the first."),
   title: external_exports.string().max(200).optional().describe("The diagram title; taken from the file when left out."),
-  partsPage: external_exports.number().int().min(1).max(1e5).optional().describe(`Which page of parts to return when a split import has more than ${WORKFLOW_LIMITS.maxImportParts} diagrams: 1 (default) is the first ${WORKFLOW_LIMITS.maxImportParts}.`),
+  partsPage: external_exports.number().int().min(1).max(1e5).optional().describe(`Page of parts, ${WORKFLOW_LIMITS.maxImportParts} a page.`),
+  large: external_exports.enum(IMPORT_LARGE).optional().describe("Too big for one picture: parts, whole, or both."),
   options: external_exports.object({
     view: external_exports.enum(IMPORT_VIEWS).optional().describe("The picture of a format drawn several ways."),
     operationId: external_exports.string().max(200).optional().describe("openapi sequence: the operation."),
@@ -79125,6 +79456,7 @@ var CoverageSchema = external_exports.object({
   line: external_exports.string().describe('The coverage in one sentence, such as "Drawn 12 of 85 resources; 60 are counted on the boxes they belong to and 13 are left out."')
 });
 var PartSchema = external_exports.object({
+  index: external_exports.number().int().min(1).describe("Its place among all the parts, from 1."),
   title: external_exports.string().describe("What this diagram shows, such as one resource group or one tag of an API."),
   kind: KindNameSchema.describe("The kind of diagram."),
   source: external_exports.string().describe("The Plotwork source of this diagram; draw it with draw_diagram."),
@@ -79153,6 +79485,11 @@ var ImportSourceResponseSchema = external_exports.object({
   partsTotal: external_exports.number().int().describe("How many diagrams the import was split into in all; 0 when it is one diagram."),
   partsPage: external_exports.number().int().describe("The page of parts this answer holds, from 1."),
   partsPages: external_exports.number().int().describe("How many pages of parts there are; call again with partsPage for the next one."),
+  series: external_exports.object({
+    id: external_exports.string(),
+    total: external_exports.number().int()
+  }).nullable().describe("For a split import, publish_diagram's series for every part, with the part's index. Null for one diagram."),
+  combined: external_exports.object({ title: external_exports.string(), source: external_exports.string() }).nullable().describe("A split import as one diagram, every arrow kept; publish at series index 0."),
   outline: external_exports.array(external_exports.string()).describe("The diagram as plain text, to check it says what the file says; empty when nothing was imported."),
   outlineTruncated: external_exports.boolean().describe("True when the outline was cut short at its summary length."),
   viewUrl: ViewUrlSchema.optional(),
@@ -83375,7 +83712,7 @@ function writeFlow(draft, report3) {
     "Show every diagram in parts; the first is the source."
   );
   const whole2 = writeOneFlow({ ...draft, cap: Number.POSITIVE_INFINITY }, new ImportReporter());
-  return { ...whole2, source: parts[0]?.source ?? whole2.source, parts, coverage: draft.coverage ?? { noun: draft.noun, total: draft.nodes.length, drawn: draft.nodes.length, summarised: 0 } };
+  return { ...whole2, source: parts[0]?.source ?? whole2.source, parts, combined: { title: draft.title, source: whole2.source }, coverage: draft.coverage ?? { noun: draft.noun, total: draft.nodes.length, drawn: draft.nodes.length, summarised: 0 } };
 }
 function writeOneFlow(draft, report3) {
   const cap2 = draft.cap ?? WORKFLOW_LIMITS.maxImportNodes;
@@ -83925,7 +84262,7 @@ function writeSchema(draft, report3) {
     const split = splitSchema(draft, report3, (part, size) => writeOneSchema(part, new ImportReporter(), size, part.tables.length, 0));
     if (split !== null) {
       const whole2 = writeOneSchema(draft, new ImportReporter(), Number.POSITIVE_INFINITY, allTables, outside2);
-      return { ...whole2, source: split[0]?.source ?? whole2.source, parts: split, coverage: { noun: "tables", total: allTables, drawn: draft.tables.length, summarised: 0 } };
+      return { ...whole2, source: split[0]?.source ?? whole2.source, parts: split, combined: { title: draft.title, source: whole2.source }, coverage: { noun: "tables", total: allTables, drawn: draft.tables.length, summarised: 0 } };
     }
   }
   return writeOneSchema(draft, report3, WORKFLOW_LIMITS.maxImportTables, allTables, outside2);
@@ -87276,7 +87613,7 @@ function drawStack(input2) {
   const renamed2 = (draftOut) => input2.stableName === void 0 ? draftOut : { ...draftOut, ids: renameIds(draftOut.ids ?? {}, input2.stableName), ...draftOut.parts === void 0 ? {} : { parts: draftOut.parts.map((part) => part.ids === void 0 ? part : { ...part, ids: renameIds(part.ids, input2.stableName) }) } };
   if (parts.length === 0) return renamed2(writeFlow(draft, context.report));
   const whole2 = writeFlow({ ...draft, cap: Number.POSITIVE_INFINITY }, new ImportReporter());
-  return renamed2({ ...whole2, source: parts[0]?.source ?? whole2.source, parts });
+  return renamed2({ ...whole2, source: parts[0]?.source ?? whole2.source, parts, combined: { title: draft.title, source: whole2.source } });
 }
 function withChange(item2, change, worded = true) {
   return change === null ? item2 : { ...item2, tone: change.tone, sub: worded ? withParts(item2.sub ?? null, change.word) : item2.sub ?? null };
@@ -102552,7 +102889,7 @@ var SHORTER = {
   kubernetes: "Send the manifests of one namespace or one application at a time."
 };
 function failed(report3) {
-  return { ok: false, kind: null, source: "", diagnostics: report3.diagnostics(), stats: NO_STATS, coverage: null, advice: null, parts: [], ids: {} };
+  return { ok: false, kind: null, source: "", diagnostics: report3.diagnostics(), stats: NO_STATS, coverage: null, advice: null, parts: [], combined: null, ids: {} };
 }
 function normalise2(text5) {
   return text5.replace(/^﻿/, "").replace(/\r\n?/g, "\n");
@@ -102664,7 +103001,29 @@ function importSource(format, input2, title = null, options3 = {}, limits = HOST
   }
   const plain3 = (source) => options3.icons === "off" ? withoutIcons(source) : source;
   const parts = (draft.parts ?? []).map((part) => ({ ...part, source: plain3(part.source) }));
-  return { ok: true, kind: draft.kind, source: plain3(draft.source), diagnostics: all(), stats: draft.stats, coverage, advice: draft.advice, parts, ids: draft.ids ?? {} };
+  const large = options3.large ?? DEFAULT_IMPORT_LARGE;
+  const whole2 = draft.combined === void 0 || parts.length === 0 || large === "parts" ? null : wholeOf({ ...draft.combined, source: plain3(draft.combined.source) }, large === "whole", report3);
+  const result = { ok: true, kind: draft.kind, source: plain3(draft.source), diagnostics: all(), stats: draft.stats, coverage, advice: draft.advice, parts, combined: whole2, ids: draft.ids ?? {} };
+  if (whole2 === null || large !== "whole") return result;
+  const kept4 = result.diagnostics.filter((diagnostic) => diagnostic.code !== DIAGNOSTIC_CODES.importSplit);
+  return { ...result, source: whole2.source, parts: [], combined: null, diagnostics: kept4 };
+}
+function wholeOf(whole2, asked, report3) {
+  const why = whyNotWhole(whole2.source);
+  if (why === null) return whole2;
+  report3.add(DIAGNOSTIC_CODES.importWholeLeftOut, START, `The whole is not drawn as one diagram${asked ? ", so it is drawn in parts instead" : ""}: ${why}`, "Show the parts; import one part of the file at a time for a single picture of it.");
+  return null;
+}
+function whyNotWhole(source) {
+  if (source.length > API_LIMITS.maxSourceLength) return `its source would be ${source.length} characters, over the ${API_LIMITS.maxSourceLength} one diagram may have.`;
+  const parsed = parseDiagram(source);
+  if (parsed.ok) {
+    const arrows = parsed.value.kind === "flow" ? parsed.value.edges.length : 0;
+    const most = WORKFLOW_LIMITS.maxImportWholeArrows;
+    return arrows > most ? `it would have ${arrows} arrows, and the most one diagram of an import may have is ${most}, so it lays out in time.` : null;
+  }
+  const first = parsed.error[0];
+  return `${first?.message ?? "it does not parse"}.`;
 }
 
 // ../../packages/diagrams/src/tools/workflows/ops.ts
@@ -102932,55 +103291,6 @@ function unknownEndHint(scan, end) {
   return unknownHint(scan, end);
 }
 
-// ../../packages/diagrams/src/edit/outcome.ts
-function refused2(message2, hint2) {
-  return { ok: false, message: message2, hint: hint2 };
-}
-var REFERENCE_OPTIONS = /* @__PURE__ */ new Set(["after", "from", "to", "at", "actors", "parent"]);
-
-// ../../packages/diagrams/src/edit/references.ts
-var TYPE_WORDS2 = new Set(FLOW_NODE_TYPES);
-function optionKeyOf(tokens2, index2) {
-  let at3 = index2 - 1;
-  while (tokens2[index2]?.kind === "word" && at3 >= 1 && tokens2[at3]?.kind === "comma" && tokens2[at3 - 1]?.kind === "word") at3 -= 2;
-  if (tokens2[at3]?.kind !== "equals") return null;
-  const key = tokens2[at3 - 1];
-  return key?.kind === "word" ? key.text : null;
-}
-function idReferences(tokens2, name2, isHeader) {
-  const isEdge = tokens2.some((token) => token.kind === "arrow");
-  const found = [];
-  tokens2.forEach((token, index2) => {
-    if (token.kind !== "word") return;
-    if (isHeader || tokens2[index2 + 1]?.kind === "equals") return;
-    if (index2 === 0 && !isEdge && statementKeywords().has(token.text)) return;
-    const key = optionKeyOf(tokens2, index2);
-    if (key !== null && !REFERENCE_OPTIONS.has(key)) return;
-    if (key === null && index2 >= 2 && !isEdge && TYPE_WORDS2.has(token.text)) return;
-    if (token.text === name2) found.push({ token, suffix: "" });
-    else if (token.text.startsWith(`${name2}.`)) found.push({ token, suffix: token.text.slice(name2.length) });
-  });
-  return found;
-}
-function labelReferences(tokens2, label, to, quote3) {
-  const found = [];
-  tokens2.forEach((token, index2) => {
-    if (token.kind !== "string") return;
-    const key = optionKeyOf(tokens2, index2);
-    const start2 = token.column - 1;
-    const end = start2 + token.length;
-    if (key === null && token.text === label) found.push({ start: start2, end, text: quote3(to) });
-    if (key === null || !REFERENCE_OPTIONS.has(key)) return;
-    const items2 = token.text.split(",").map((item2) => item2.trim());
-    if (!items2.includes(label)) return;
-    found.push({ start: start2, end, text: quote3(items2.map((item2) => item2 === label ? to : item2).join(", ")) });
-  });
-  return found;
-}
-function spliced(line5, splices) {
-  return [...splices].sort((a, b) => b.start - a.start).reduce((text5, splice) => `${text5.slice(0, splice.start)}${splice.text}${text5.slice(splice.end)}`, line5);
-}
-
 // ../../packages/diagrams/src/edit/structure.ts
 function kindOf3(scan) {
   return scan.elements.find((element) => element.role === "header")?.keyword ?? null;
@@ -103019,13 +103329,13 @@ var NODE_STATEMENTS = {
 function nodeLine3(kind, op) {
   const options3 = Object.entries(op.options ?? {}).map(([key, value]) => ` ${key}=${written(value)}`).join("");
   if (op.statement !== void 0) {
-    if (op.statement.includes("\n")) return { ok: false, outcome: refused2("statement must be one line.", "Add a block one line at a time, or use replace_text.") };
+    if (op.statement.includes("\n")) return { ok: false, outcome: refused("statement must be one line.", "Add a block one line at a time, or use replace_text.") };
     return { ok: true, line: `${op.statement.trim()}${options3}` };
   }
   const shape = kind === null ? void 0 : NODE_STATEMENTS[kind];
-  if (shape === void 0) return { ok: false, outcome: refused2(`A ${kind ?? "source with no header"} diagram has no plain node statement.`, "Send statement with the whole line to add, as get_diagram_syntax shows it for this kind.") };
-  if (op.label === void 0) return { ok: false, outcome: refused2("add_node needs label.", "Send label, the text the item shows.") };
-  if (shape.id && (op.id === void 0 || !isId(op.id))) return { ok: false, outcome: refused2(`A ${kind} item needs an id.`, "Send id: letters, digits, and _, with single - between them.") };
+  if (shape === void 0) return { ok: false, outcome: refused(`A ${kind ?? "source with no header"} diagram has no plain node statement.`, "Send statement with the whole line to add, as get_diagram_syntax shows it for this kind.") };
+  if (op.label === void 0) return { ok: false, outcome: refused("add_node needs label.", "Send label, the text the item shows.") };
+  if (shape.id && (op.id === void 0 || !isId(op.id))) return { ok: false, outcome: refused(`A ${kind} item needs an id.`, "Send id: letters, digits, and _, with single - between them.") };
   const keyword = shape.typed === void 0 ? op.type ?? shape.keyword : shape.keyword;
   const type = shape.typed === void 0 ? "" : ` ${op.type ?? shape.typed}`;
   const id = shape.id ? ` ${op.id}` : "";
@@ -103034,15 +103344,15 @@ function nodeLine3(kind, op) {
 function addNode2(scan, op) {
   const made = nodeLine3(kindOf3(scan), op);
   if (!made.ok) return made.outcome;
-  if (op.id !== void 0 && scan.elements.some((element) => element.id === op.id && element.keyword !== null)) return refused2(`The id "${op.id}" is already used.`, "Choose an id nothing else has.");
+  if (op.id !== void 0 && scan.elements.some((element) => element.id === op.id && element.keyword !== null)) return refused(`The id "${op.id}" is already used.`, "Choose an id nothing else has.");
   let place3;
   if (op.into !== void 0 && op.into !== null) {
     const block = findBlock(scan, op.into);
-    if (!block.ok) return refused2(block.message, block.hint);
+    if (!block.ok) return refused(block.message, block.hint);
     place3 = placeInside(scan, block.index);
   } else if (op.after !== void 0) {
     const found = findTarget(scan, op.after);
-    if (!found.ok) return refused2(found.message, found.hint);
+    if (!found.ok) return refused(found.message, found.hint);
     const element = scan.elements[found.index];
     place3 = { index: element.end, indent: indentOf6(scan.lines[element.start - 1] ?? "") };
   } else {
@@ -103056,11 +103366,11 @@ function referenceName(element) {
   return element.id ?? element.label;
 }
 function remove(scan, op) {
-  if (op.target === void 0) return refused2("remove needs target.", "Send the id or label of the statement to remove; remove_edge removes an edge.");
+  if (op.target === void 0) return refused("remove needs target.", "Send the id or label of the statement to remove; remove_edge removes an edge.");
   const found = findTarget(scan, op.target);
-  if (!found.ok) return refused2(found.message, found.hint);
+  if (!found.ok) return refused(found.message, found.hint);
   const element = scan.elements[found.index];
-  if (element.role === "header") return refused2("The header cannot be removed.", "Change it with set, or replace_text.");
+  if (element.role === "header") return refused("The header cannot be removed.", "Change it with set, or replace_text.");
   const gone = [found.index, ...descendantsOf(scan, found.index)];
   const names11 = new Set(gone.map((index2) => referenceName(scan.elements[index2])).filter((name2) => name2 !== null));
   const block = element.parent === null ? null : scan.elements[element.parent];
@@ -103093,17 +103403,17 @@ function remove(scan, op) {
   };
 }
 function move2(scan, op) {
-  if (op.target === void 0 || op.into === void 0) return refused2("move needs target and into.", "Send into as the id or label of a block, or null for the top level.");
+  if (op.target === void 0 || op.into === void 0) return refused("move needs target and into.", "Send into as the id or label of a block, or null for the top level.");
   const found = findTarget(scan, op.target);
-  if (!found.ok) return refused2(found.message, found.hint);
+  if (!found.ok) return refused(found.message, found.hint);
   const element = scan.elements[found.index];
-  if (element.role === "header") return refused2("The header cannot be moved.", "Move a statement instead.");
-  if (op.into === null && element.parent === null) return refused2(`${op.target} is already at the top level.`, "Name a block in into to move it inside one.");
+  if (element.role === "header") return refused("The header cannot be moved.", "Move a statement instead.");
+  if (op.into === null && element.parent === null) return refused(`${op.target} is already at the top level.`, "Name a block in into to move it inside one.");
   if (op.into !== null) {
     const block = findBlock(scan, op.into);
-    if (!block.ok) return refused2(block.message, block.hint);
-    if (block.index === found.index || descendantsOf(scan, found.index).includes(block.index)) return refused2(`${op.target} cannot go inside itself.`, "Name a block outside it.");
-    if (element.parent === block.index) return refused2(`${op.target} is already in ${op.into}.`, "Nothing to move.");
+    if (!block.ok) return refused(block.message, block.hint);
+    if (block.index === found.index || descendantsOf(scan, found.index).includes(block.index)) return refused(`${op.target} cannot go inside itself.`, "Name a block outside it.");
+    if (element.parent === block.index) return refused(`${op.target} is already in ${op.into}.`, "Nothing to move.");
   }
   const moved5 = scan.lines.slice(element.start - 1, element.end);
   const from = indentOf6(moved5[0] ?? "");
@@ -103112,7 +103422,7 @@ function move2(scan, op) {
   if (op.into === null) place3 = placeAtTop(rest);
   else {
     const block = findBlock(rest, op.into);
-    if (!block.ok) return refused2(block.message, block.hint);
+    if (!block.ok) return refused(block.message, block.hint);
     place3 = placeInside(rest, block.index);
   }
   const shifted3 = moved5.map((line5) => line5.trim() === "" ? line5 : line5.startsWith(from) ? `${place3.indent}${line5.slice(from.length)}` : line5);
@@ -103128,10 +103438,10 @@ function endText(scan, end) {
   return written(end, byLabelOnly);
 }
 function addEdge(scan, op) {
-  if (op.from === void 0 || op.to === void 0) return refused2("add_edge needs from and to.", "Send the id or label of both ends.");
-  for (const end of [op.from, op.to]) if (!isKnownEnd(scan, end)) return refused2(`Nothing is named "${end}".`, unknownEndHint(scan, end));
+  if (op.from === void 0 || op.to === void 0) return refused("add_edge needs from and to.", "Send the id or label of both ends.");
+  for (const end of [op.from, op.to]) if (!isKnownEnd(scan, end)) return refused(`Nothing is named "${end}".`, unknownEndHint(scan, end));
   const isSankey = kindOf3(scan) === "sankey";
-  if (isSankey && (op.label === void 0 || !/^\d+(\.\d+)?$/.test(op.label))) return refused2("A Sankey edge needs its amount as label.", 'Send label as a number, such as "1200".');
+  if (isSankey && (op.label === void 0 || !/^\d+(\.\d+)?$/.test(op.label))) return refused("A Sankey edge needs its amount as label.", 'Send label as a number, such as "1200".');
   const label = op.label === void 0 ? "" : ` : ${isSankey ? op.label : quote(op.label)}`;
   const options3 = Object.entries(op.options ?? {}).map(([key, value]) => ` ${key}=${written(value)}`).join("");
   const text5 = `${endText(scan, op.from)} ${op.arrow ?? "->"} ${endText(scan, op.to)}${label}${options3}`;
@@ -103151,23 +103461,23 @@ function addEdge(scan, op) {
   return { ok: true, source: lines.join("\n"), lines: [at3 + 1], message: `Added line ${at3 + 1}: ${text5}` };
 }
 function removeEdge(scan, op) {
-  if (op.from === void 0 || op.to === void 0) return refused2("remove_edge needs from and to.", "Send the id or label of both ends.");
+  if (op.from === void 0 || op.to === void 0) return refused("remove_edge needs from and to.", "Send the id or label of both ends.");
   const matches3 = scan.elements.filter((element) => element.role === "edge" && element.from === op.from && element.to === op.to && (op.label === void 0 || element.label === op.label));
   if (matches3.length === 0) {
     const near4 = scan.elements.filter((element) => element.role === "edge" && (element.from === op.from || element.to === op.to)).slice(0, 5);
     const listed2 = near4.map((element) => `${element.from} ${element.arrow} ${element.to} (line ${element.start})`).join("; ");
-    return refused2(`There is no edge from ${op.from} to ${op.to}${op.label === void 0 ? "" : ` labelled "${op.label}"`}.`, near4.length === 0 ? "Check both ends; outline_diagram lists the connections." : `Edges near it: ${listed2}.`);
+    return refused(`There is no edge from ${op.from} to ${op.to}${op.label === void 0 ? "" : ` labelled "${op.label}"`}.`, near4.length === 0 ? "Check both ends; outline_diagram lists the connections." : `Edges near it: ${listed2}.`);
   }
   const drop = new Set(matches3.flatMap((element) => Array.from({ length: element.end - element.start + 1 }, (_, offset) => element.start + offset)));
   const lines = scan.lines.filter((_, index2) => !drop.has(index2 + 1));
   return { ok: true, source: lines.join("\n"), lines: [...drop], message: `Removed ${plural2(matches3.length, "edge")} from ${op.from} to ${op.to}, on ${lineList([...drop])}.` };
 }
 function replaceText(scan, op) {
-  if (op.find === void 0 || op.replace === void 0) return refused2("replace_text needs find and replace.", "Send the exact text to find and what to put instead.");
+  if (op.find === void 0 || op.replace === void 0) return refused("replace_text needs find and replace.", "Send the exact text to find and what to put instead.");
   const source = scan.lines.join("\n");
   const count3 = source.split(op.find).length - 1;
-  if (count3 === 0) return refused2("The text to find is not in the source.", "Copy it exactly, spaces and quotes included.");
-  if (count3 > 1 && op.all !== true) return refused2(`The text occurs ${count3} times.`, "Send all true to replace every one, or a longer find that occurs once.");
+  if (count3 === 0) return refused("The text to find is not in the source.", "Copy it exactly, spaces and quotes included.");
+  if (count3 > 1 && op.all !== true) return refused(`The text occurs ${count3} times.`, "Send all true to replace every one, or a longer find that occurs once.");
   const lines = [];
   let result = "";
   let rest = source;
@@ -103191,8 +103501,8 @@ function applySplices(scan, byLine) {
   return { source: lines.join("\n"), lines: [...byLine.keys()].filter((line5) => (byLine.get(line5)?.length ?? 0) > 0) };
 }
 function renameId(scan, from, to, column) {
-  if (!isId(to)) return refused2(`"${to}" is not a legal id.`, "An id is letters, digits, and _, with single - between them, and starts with a letter or _.");
-  if (scan.elements.some((element) => element.id === to && element.keyword !== null)) return refused2(`The id "${to}" is already used.`, "Choose an id nothing else has, or remove the other statement first.");
+  if (!isId(to)) return refused(`"${to}" is not a legal id.`, "An id is letters, digits, and _, with single - between them, and starts with a letter or _.");
+  if (scan.elements.some((element) => element.id === to && element.keyword !== null)) return refused(`The id "${to}" is already used.`, "Choose an id nothing else has, or remove the other statement first.");
   const header = scan.elements.find((element) => element.role === "header")?.start;
   const byLine = /* @__PURE__ */ new Map();
   for (const [line5, tokens2] of scan.tokens) {
@@ -103211,7 +103521,7 @@ function renameId(scan, from, to, column) {
 function renameColumn2(scan, element, to) {
   const block = element.parent === null ? null : scan.elements[element.parent];
   const table = block?.id ?? block?.label ?? null;
-  if (table === null || element.id === null) return refused2("Only a column with a bare name can be renamed this way.", "Use replace_text with the exact line.");
+  if (table === null || element.id === null) return refused("Only a column with a bare name can be renamed this way.", "Use replace_text with the exact line.");
   const own2 = scan.tokens.get(element.start)?.[0];
   const outcome = renameId(scan, table, to, element.id);
   if (!outcome.ok || own2 === void 0) return outcome;
@@ -103226,29 +103536,29 @@ function renameLabel(scan, from, to) {
     const places = labelReferences(tokens2, from, to, quote);
     if (places.length > 0) byLine.set(line5, places);
   }
-  if (byLine.size === 0) return refused2(`No quoted text is exactly "${from}".`, "Use the label exactly as the source writes it, or replace_text.");
+  if (byLine.size === 0) return refused(`No quoted text is exactly "${from}".`, "Use the label exactly as the source writes it, or replace_text.");
   const done = applySplices(scan, byLine);
   return { ok: true, source: done.source, lines: done.lines, message: `Renamed the label "${from}" to "${to}" on ${lineList(done.lines)}.` };
 }
 function rename(scan, op) {
-  if (op.target === void 0 || op.to === void 0) return refused2("rename needs target and to.", "Send target (the id or label now) and to (the new one).");
-  if (op.target === op.to) return refused2("target and to are the same.", "Send the new name in to.");
+  if (op.target === void 0 || op.to === void 0) return refused("rename needs target and to.", "Send target (the id or label now) and to (the new one).");
+  if (op.target === op.to) return refused("target and to are the same.", "Send the new name in to.");
   const found = findTarget(scan, op.target);
   const element = found.ok ? scan.elements[found.index] : null;
   if (element !== null && element.role === "row" && element.keyword === null && op.target.includes(".")) return renameColumn2(scan, element, op.to);
   if (element !== null && element.id === op.target) return renameId(scan, op.target, op.to, null);
   if (scan.lines.some((_, index2) => (scan.tokens.get(index2 + 1) ?? []).some((token) => token.kind === "string" && token.text === op.target))) return renameLabel(scan, op.target, op.to);
-  return found.ok ? renameLabel(scan, op.target, op.to) : refused2(found.message, found.hint);
+  return found.ok ? renameLabel(scan, op.target, op.to) : refused(found.message, found.hint);
 }
 function setTarget(scan, op) {
   if (op.target === void 0 && op.from !== void 0 && op.to !== void 0) {
     const edge = scan.elements.find((element) => element.role === "edge" && element.from === op.from && element.to === op.to);
-    if (edge === void 0) return { ok: false, outcome: refused2(`There is no edge from ${op.from} to ${op.to}.`, "Check both ends, or add it with add_edge.") };
+    if (edge === void 0) return { ok: false, outcome: refused(`There is no edge from ${op.from} to ${op.to}.`, "Check both ends, or add it with add_edge.") };
     return { ok: true, element: edge };
   }
-  if (op.target === void 0) return { ok: false, outcome: refused2("set needs target, or from and to for an edge.", 'Send target "header" to set an option of the header line.') };
+  if (op.target === void 0) return { ok: false, outcome: refused("set needs target, or from and to for an edge.", 'Send target "header" to set an option of the header line.') };
   const found = findTarget(scan, op.target);
-  if (!found.ok) return { ok: false, outcome: refused2(found.message, found.hint) };
+  if (!found.ok) return { ok: false, outcome: refused(found.message, found.hint) };
   return { ok: true, element: scan.elements[found.index] };
 }
 function insertAt(scan, element) {
@@ -103258,7 +103568,7 @@ function insertAt(scan, element) {
   return before === void 0 ? (scan.lines[element.start - 1] ?? "").length : before.column - 1 + before.length;
 }
 function setOption(scan, op) {
-  if (op.option === void 0 || op.value === void 0) return refused2("set needs option and value.", "Send option (such as icon) and value; value null removes it.");
+  if (op.option === void 0 || op.value === void 0) return refused("set needs option and value.", "Send option (such as icon) and value; value null removes it.");
   const picked = setTarget(scan, op);
   if (!picked.ok) return picked.outcome;
   const { element } = picked;
@@ -103267,7 +103577,7 @@ function setOption(scan, op) {
   const where = `line ${element.start}`;
   let text5;
   if (op.value === null) {
-    if (existing === void 0) return refused2(`The statement on ${where} has no ${op.option} option.`, "Nothing to remove.");
+    if (existing === void 0) return refused(`The statement on ${where} has no ${op.option} option.`, "Nothing to remove.");
     const start2 = /[ \t]*$/.exec(line5.slice(0, existing.start))?.index ?? existing.start;
     text5 = `${line5.slice(0, start2)}${line5.slice(existing.end)}`;
   } else {
@@ -103723,11 +104033,13 @@ var getPatternWorkflow = defineWorkflow({
 });
 
 // ../../packages/diagrams/src/tools/workflows/import-source.ts
-function importedNext(result, warnings) {
+function importedNext(result, warnings, seriesId) {
   const coverage = result.coverage;
   const partial2 = coverage === null || coverage.complete ? "" : `${coverage.line} The picture is not the whole file: say so when you show it. `;
   const overview2 = result.parts[0]?.title.startsWith("Overview") === true ? ": the first is an overview of its groups and each other part draws one group whole" : "";
-  const split = result.parts.length === 0 ? "" : `The file is too big for one readable picture, so it is drawn as ${countOf3(result.parts.length, "diagram")} in parts${overview2}; source is the first. Show every one of them. `;
+  const whole2 = result.combined === null ? "" : ", and combined is the whole as one diagram";
+  const together = seriesId === null ? "" : `, and when the person asks to publish them, publish every part with series { id: "${seriesId}", index: the part's index, total: ${result.parts.length} }${result.combined === null ? "" : " and combined with index 0"} so they stay together`;
+  const split = result.parts.length === 0 ? "" : `The file is too big for one readable picture, so it is drawn as ${countOf3(result.parts.length, "diagram")} in parts${overview2}; source is the first${whole2}. Show every one of them${together}. `;
   const read = result.diagnostics.length === 0 ? "" : `Read the ${countOf3(result.diagnostics.length, "diagnostic")}: they point into your file and say what was left out. `;
   const advice = result.advice === null ? "" : `${result.advice} `;
   const fix = warnings === 0 ? "" : `Take the ${countOf3(warnings, "suggestion")} in validation.warnings. `;
@@ -103748,6 +104060,8 @@ function nothing(input2, diagnostics) {
     partsTotal: 0,
     partsPage: 1,
     partsPages: 1,
+    series: null,
+    combined: null,
     outline: [],
     outlineTruncated: false,
     next: `Nothing was imported. ${first?.hint ?? "Read the diagnostics."}`
@@ -103768,7 +104082,7 @@ async function importFromSource(input2, ops = ENGINE_OPS) {
       }
     ]);
   }
-  const result = ops.importSource(input2.format, input2.files ?? input2.text ?? "", input2.title ?? null, input2.options);
+  const result = ops.importSource(input2.format, input2.files ?? input2.text ?? "", input2.title ?? null, input2.large === void 0 ? input2.options : { ...input2.options, large: input2.large });
   if (!result.ok || result.kind === null) return nothing(input2, result.diagnostics.map((diagnostic) => ({ ...diagnostic })));
   const checked2 = await ops.validate(result.source);
   const outlined = checked2.valid ? ops.outline(result.source) : null;
@@ -103780,8 +104094,9 @@ async function importFromSource(input2, ops = ENGINE_OPS) {
   const parts = [];
   for (const [index2, part] of result.parts.slice((page - 1) * size, page * size).entries()) {
     const check2 = page === 1 && index2 === 0 && part.source === result.source ? checked2 : await ops.validate(part.source);
-    parts.push({ title: part.title, kind: part.kind, source: part.source, items: part.items, valid: check2.valid, warnings: check2.warnings });
+    parts.push({ index: (page - 1) * size + index2 + 1, title: part.title, kind: part.kind, source: part.source, items: part.items, valid: check2.valid, warnings: check2.warnings });
   }
+  const seriesId = result.parts.length === 0 ? null : suggestSeriesId(input2.format, result.parts.map((part) => part.title));
   return {
     ok: true,
     kind: result.kind,
@@ -103795,9 +104110,11 @@ async function importFromSource(input2, ops = ENGINE_OPS) {
     partsTotal: result.parts.length,
     partsPage: page,
     partsPages: pages2,
+    series: seriesId === null ? null : { id: seriesId, total: result.parts.length },
+    combined: result.combined,
     outline: outline2,
     outlineTruncated: outline2.length < lines.length,
-    next: `${importedNext(result, checked2.warnings.length)}${page < pages2 ? ` This answer holds parts ${(page - 1) * size + 1} to ${Math.min(page * size, result.parts.length)} of ${result.parts.length}: call import_source again with partsPage ${page + 1} for the next ones.` : ""}`
+    next: `${importedNext(result, checked2.warnings.length, seriesId)}${page < pages2 ? ` This answer holds parts ${(page - 1) * size + 1} to ${Math.min(page * size, result.parts.length)} of ${result.parts.length}: call import_source again with partsPage ${page + 1} for the next ones.` : ""}`
   };
 }
 var importSourceWorkflow = defineWorkflow({
