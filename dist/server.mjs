@@ -20319,7 +20319,7 @@ var MARK_ICON = {
 // package.json
 var package_default = {
   name: "@buun/selfhost",
-  version: "0.6.0-beta.3",
+  version: "0.6.0",
   private: true,
   description: "The self-hosted Plotwork engine: MCP over Streamable HTTP and a stateless REST surface in one Node server and container image. No accounts, no hosting, no network.",
   type: "module",

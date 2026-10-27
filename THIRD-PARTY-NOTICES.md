@@ -1,6 +1,6 @@
 # Third-party notices
 
-plotwork-selfhost 0.6.0-beta.3 is licensed under the Plotwork Self-Hosted licence, in the file LICENSE. The files under dist/ (server.mjs, engine-worker.mjs, healthcheck.mjs, their chunks and the icon art) also contain code and data from other people. This file lists them, with the licence each is used under and the full licence text. Those licences apply to that material. The Plotwork Self-Hosted licence of plotwork-selfhost does not replace them, and it does not cover the vendor artwork described under "Trademarks and official icons".
+plotwork-selfhost 0.6.0 is licensed under the Plotwork Self-Hosted licence, in the file LICENSE. The files under dist/ (server.mjs, engine-worker.mjs, healthcheck.mjs, their chunks and the icon art) also contain code and data from other people. This file lists them, with the licence each is used under and the full licence text. Those licences apply to that material. The Plotwork Self-Hosted licence of plotwork-selfhost does not replace them, and it does not cover the vendor artwork described under "Trademarks and official icons".
 
 The build writes this file from the contents of the bundle. Do not edit it.
 
