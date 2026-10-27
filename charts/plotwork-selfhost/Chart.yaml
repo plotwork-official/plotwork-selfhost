@@ -5,8 +5,8 @@ type: application
 # version and appVersion are the version in apps/selfhost/package.json. release-please moves both with it (its generic
 # updater rewrites the two marked lines), the release packages the chart with that version, and a test
 # fails when they differ.
-version: 0.5.1-beta.1 # x-release-please-version
-appVersion: "0.5.1-beta.1" # x-release-please-version
+version: 0.5.1 # x-release-please-version
+appVersion: "0.5.1" # x-release-please-version
 kubeVersion: ">=1.25.0-0"
 home: https://docs.plotwork.dev/mcp/self-hosting
 icon: https://plotwork.dev/brand/logo/plotwork-mark-on-light.svg
