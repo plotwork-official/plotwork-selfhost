@@ -8,7 +8,7 @@ The Plotwork diagram engine as one container, for a company whose diagram text m
 |---|---|
 | Where is the image? | `plotwork/selfhost` on Docker Hub and `ghcr.io/plotwork-official/plotwork-selfhost`, the same digest in both |
 | Which platforms? | `linux/amd64` and `linux/arm64` |
-| Which tag do I use? | A version such as `0.7.0-beta.1` in production. `latest` follows stable releases, `beta` the previews |
+| Which tag do I use? | A version such as `0.7.0` in production. `latest` follows stable releases, `beta` the previews |
 | What is in it? | Distroless Node 24 and the engine's bundle, nothing else: no shell, no package manager |
 | How do I check it? | Every image is signed with Sigstore and carries build provenance and an SBOM. See [Verify the image](#verify-the-image) |
 | Is it free? | For individuals, non-commercial use, a 30 day evaluation, and organisations under 250 people and USD 10 million a year. Larger organisations need a commercial licence. See [Licence](#licence) |
@@ -29,7 +29,7 @@ docker run -d --name plotwork \
   --read-only --cap-drop ALL --security-opt no-new-privileges \
   -p 127.0.0.1:3106:3106 \
   -e PLOTWORK_TOKEN \
-  plotwork/selfhost:0.7.0-beta.1
+  plotwork/selfhost:0.7.0
 ```
 
 Check it, then point an agent at `http://<host>:3106/mcp` with the header `Authorization: Bearer <token>`:
@@ -48,7 +48,7 @@ The [chart](./charts/plotwork-selfhost) is released with each image, at the same
 kubectl create namespace plotwork
 kubectl -n plotwork create secret generic plotwork --from-literal=token="$(openssl rand -hex 32)"
 helm install plotwork oci://ghcr.io/plotwork-official/charts/plotwork-selfhost \
-  --version 0.7.0-beta.1 --namespace plotwork --set auth.existingSecret=plotwork
+  --version 0.7.0 --namespace plotwork --set auth.existingSecret=plotwork
 helm test plotwork -n plotwork
 ```
 
@@ -59,18 +59,18 @@ It runs two non-root, read-only replicas with no API token, a NetworkPolicy with
 Each image was built by [the publish workflow](./.github/workflows/publish.yml) of this repository, from the files in it, which match [checksums.txt](./checksums.txt). Check a pull before you push it into your own registry:
 
 ```sh
-cosign verify plotwork/selfhost:0.7.0-beta.1 \
+cosign verify plotwork/selfhost:0.7.0 \
   --certificate-identity-regexp '^https://github.com/plotwork-official/plotwork-selfhost/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
-gh attestation verify oci://plotwork/selfhost:0.7.0-beta.1 --repo plotwork-official/plotwork-selfhost
+gh attestation verify oci://plotwork/selfhost:0.7.0 --repo plotwork-official/plotwork-selfhost
 ```
 
 The build provenance and the SBOM are in the image index:
 
 ```sh
-docker buildx imagetools inspect plotwork/selfhost:0.7.0-beta.1 --format '{{ json .Provenance }}'
-docker buildx imagetools inspect plotwork/selfhost:0.7.0-beta.1 --format '{{ json .SBOM }}'
+docker buildx imagetools inspect plotwork/selfhost:0.7.0 --format '{{ json .Provenance }}'
+docker buildx imagetools inspect plotwork/selfhost:0.7.0 --format '{{ json .SBOM }}'
 ```
 
 ## Licence

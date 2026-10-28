@@ -1710,8 +1710,8 @@ var READ_LIMITS = {
 // ../../packages/diagrams/src/constants/action-release.ts
 var ACTION_REPOSITORY = "plotwork-official/plotwork-action";
 var ACTION_RELEASE = {
-  version: "1.5.1",
-  sha: "a4df8eaf155240df63e49d360bc63e50529a3f26"
+  version: "1.6.0",
+  sha: "6dadd275242a09f7a77bf19a7e3e0eb792c89e5b"
 };
 var PINNED_ACTION_LINE = `uses: ${ACTION_REPOSITORY}@${ACTION_RELEASE.sha} # v${ACTION_RELEASE.version}`;
 function versionAtLeast(version2, since) {
@@ -1750,7 +1750,7 @@ var VIEW_LINKS = {
 };
 var CLI_RELEASE = {
   packageName: "@buun_group/plotwork",
-  version: "0.6.1",
+  version: "0.7.0",
   onNpm: true
 };
 var CLI_SCHEME_FLAG_SINCE = "0.3.0";
@@ -1769,7 +1769,7 @@ var GITLAB_COMPONENT_RELEASE = {
   project: "plotwork/plotwork-component",
   /** The component's name: its template is `templates/<name>.yml`. */
   component: "plotwork",
-  version: "0.1.2",
+  version: "0.1.3",
   published: true
 };
 var GITLAB_COMPONENT_PATH = `gitlab.com/${GITLAB_COMPONENT_RELEASE.project}/${GITLAB_COMPONENT_RELEASE.component}`;
@@ -1819,7 +1819,7 @@ var KEY_VARIABLE = STYLE_RULES.env.access;
 // ../../packages/diagrams/src/constants/mcp-release.ts
 var MCP_RELEASE = {
   packageName: "@buun_group/plotwork-mcp",
-  version: "0.8.1"
+  version: "0.9.0"
 };
 function mcpPackagePin(release = MCP_RELEASE) {
   return `${release.packageName}@${release.version}`;
