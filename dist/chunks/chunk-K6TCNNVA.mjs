@@ -1782,7 +1782,7 @@ var GITLAB_COMPONENT_RELEASE = {
   project: "plotwork/plotwork-component",
   /** The component's name: its template is `templates/<name>.yml`. */
   component: "plotwork",
-  version: "0.1.3",
+  version: "0.1.4",
   published: true
 };
 var GITLAB_COMPONENT_PATH = `gitlab.com/${GITLAB_COMPONENT_RELEASE.project}/${GITLAB_COMPONENT_RELEASE.component}`;
