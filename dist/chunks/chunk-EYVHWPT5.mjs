@@ -1706,12 +1706,25 @@ var READ_LIMITS = {
   /** The most bytes of a picture it reads. A picture of the largest diagram is far smaller. */
   maxBytes: 1e6
 };
+var HOSTED_PICTURE_PATH = /^\/([dlo])\/[A-Za-z0-9_-]{22}\.svg$/;
+var VIEWER_PACKAGE = {
+  /** The package name on npm. */
+  name: "@plotwork.official/viewer",
+  /** The entry that defines the `<plotwork-diagram>` element. */
+  register: "@plotwork.official/viewer/register",
+  /** The entry of the React component. */
+  react: "@plotwork.official/viewer/react",
+  /** The custom element. */
+  element: "plotwork-diagram",
+  /** The React component. */
+  component: "PlotworkDiagram"
+};
 
 // ../../packages/diagrams/src/constants/action-release.ts
 var ACTION_REPOSITORY = "plotwork-official/plotwork-action";
 var ACTION_RELEASE = {
-  version: "1.6.0",
-  sha: "6dadd275242a09f7a77bf19a7e3e0eb792c89e5b"
+  version: "1.7.0",
+  sha: "f1bb2403552880c8dd9c0f2c5ed213b36c3c9390"
 };
 var PINNED_ACTION_LINE = `uses: ${ACTION_REPOSITORY}@${ACTION_RELEASE.sha} # v${ACTION_RELEASE.version}`;
 function versionAtLeast(version2, since) {
@@ -1750,7 +1763,7 @@ var VIEW_LINKS = {
 };
 var CLI_RELEASE = {
   packageName: "@buun_group/plotwork",
-  version: "0.7.0",
+  version: "0.8.0",
   onNpm: true
 };
 var CLI_SCHEME_FLAG_SINCE = "0.3.0";
@@ -1819,7 +1832,7 @@ var KEY_VARIABLE = STYLE_RULES.env.access;
 // ../../packages/diagrams/src/constants/mcp-release.ts
 var MCP_RELEASE = {
   packageName: "@buun_group/plotwork-mcp",
-  version: "0.9.0"
+  version: "0.10.0"
 };
 function mcpPackagePin(release = MCP_RELEASE) {
   return `${release.packageName}@${release.version}`;
@@ -79487,6 +79500,105 @@ var ReadDiagramResponseSchema = external_exports.object({
   next: external_exports.string().describe("The next step in one sentence.")
 }).meta({ id: "ReadDiagramResponse", description: "The source of a Plotwork SVG, or why there is none and what to do." });
 
+// ../../packages/diagrams/src/embed/hosted-link.ts
+var HOSTED_LINK_KINDS = ["picture", "stable", "organisation"];
+var KIND_OF_FOLDER = { d: "picture", l: "stable", o: "organisation" };
+var HINT = `Send a hosted picture, such as https://${DIAGRAM_LINK_HOSTS[0]}/d/<token>.svg, a stable link (/l/<token>.svg), or an organisation embed link (/o/<token>.svg).`;
+function readHostedLink(text5) {
+  let link2;
+  try {
+    link2 = new URL(text5.trim());
+  } catch {
+    return { ok: false, message: `"${text5.slice(0, 80)}" is not a link.`, hint: HINT };
+  }
+  if (link2.protocol !== "https:") return { ok: false, message: "A hosted picture is shown over https only.", hint: HINT };
+  if (link2.username !== "" || link2.password !== "" || link2.port !== "") return { ok: false, message: "A link with a user name, a password, or a port is not a hosted picture.", hint: HINT };
+  if (!DIAGRAM_LINK_HOSTS.includes(link2.hostname)) {
+    return { ok: false, message: `Only pictures on ${DIAGRAM_LINK_HOSTS.join(" and ")} are hosted by Plotwork.`, hint: `${HINT} A view link holds the diagram itself: draw it to a file with the command line's render, and embed the file.` };
+  }
+  const folder = HOSTED_PICTURE_PATH.exec(link2.pathname)?.[1];
+  const kind = folder === void 0 ? void 0 : KIND_OF_FOLDER[folder];
+  if (kind === void 0) return { ok: false, message: "The path of a hosted picture is /d/, /l/ or /o/, a 22 character token, and .svg.", hint: HINT };
+  if (link2.search !== "" || link2.hash !== "") return { ok: false, message: "A hosted picture has no query or fragment.", hint: `Send the link as it was published. ${HINT}` };
+  return { ok: true, url: link2.href, kind };
+}
+
+// ../../packages/diagrams/src/embed/fingerprint.ts
+async function pictureFingerprint(svg) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(svg));
+  return `sha256-${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+}
+
+// ../../packages/diagrams/src/embed/snippet.ts
+var EMBED_FORMATS = ["html", "react"];
+var EMBED_INSTALL = `npm install ${VIEWER_PACKAGE.name}`;
+var EMBED_NOTES = {
+  livePicture: "live is left out: a published picture (/d/) never changes. Only a stable link (/l/) or an organisation embed link (/o/) shows a new version.",
+  liveFile: "live is left out: a file the page serves changes only when the site is built again. Only a stable link (/l/) or an organisation embed link (/o/) shows a new version.",
+  livePinned: "live is left out: a pinned picture is never live, because a new version would not match its fingerprint.",
+  pinLink: "fingerprint is left out: a link cannot be pinned without its SVG text, and nothing is fetched. Pin the file itself, or send the SVG text with the link.",
+  pinStable: "A pinned stable link stops showing the diagram once the link moves to a new version.",
+  organisation: "An organisation embed link shows the diagram only on the websites its owner allows; any other page shows a placeholder."
+};
+function escapeHtmlAttribute(value) {
+  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#39;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function jsxAttribute(name2, value) {
+  return /^[^"&{}<>\\\r\n\u2028\u2029]*$/.test(value) ? `${name2}="${value}"` : `${name2}={${JSON.stringify(value).replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029")}}`;
+}
+async function buildEmbed(request) {
+  const notes = [];
+  const fingerprint = request.svg === null ? null : await pictureFingerprint(request.svg);
+  const pinned = request.pin && fingerprint !== null;
+  if (request.pin && fingerprint === null) notes.push(EMBED_NOTES.pinLink);
+  if (pinned && request.link === "stable") notes.push(EMBED_NOTES.pinStable);
+  const followable = request.link === "stable" || request.link === "organisation";
+  const live = request.live && followable && !pinned;
+  if (request.live && !live) notes.push(pinned && followable ? EMBED_NOTES.livePinned : request.link === null ? EMBED_NOTES.liveFile : EMBED_NOTES.livePicture);
+  if (request.link === "organisation") notes.push(EMBED_NOTES.organisation);
+  const label = request.label?.trim() ?? "";
+  const attributes2 = [["src", request.src]];
+  if (label !== "") attributes2.push(["label", label]);
+  if (pinned) attributes2.push(["fingerprint", fingerprint]);
+  const snippet2 = request.format === "react" ? [
+    `import { ${VIEWER_PACKAGE.component} } from '${VIEWER_PACKAGE.react}'`,
+    "",
+    `<${VIEWER_PACKAGE.component} ${[...attributes2.map(([name2, value]) => jsxAttribute(name2, value)), ...live ? ["live"] : []].join(" ")} />`
+  ].join("\n") : [
+    '<script type="module">',
+    `  import '${VIEWER_PACKAGE.register}'`,
+    "</script>",
+    "",
+    `<${VIEWER_PACKAGE.element} ${[...attributes2.map(([name2, value]) => `${name2}="${escapeHtmlAttribute(value)}"`), ...live ? ["live"] : []].join(" ")}></${VIEWER_PACKAGE.element}>`
+  ].join("\n");
+  return { snippet: snippet2, install: EMBED_INSTALL, fingerprint, live, pinned, notes };
+}
+
+// ../../packages/diagrams/src/schemas/embed-diagram.ts
+var EMBED_LABEL_MAX_LENGTH = 200;
+var EmbedDiagramInputSchema = external_exports.object({
+  url: external_exports.string().min(1).max(200).optional().describe("A hosted picture (/d/), stable link (/l/) or organisation embed link (/o/) on cdn.plotwork.dev. Never fetched."),
+  svg: external_exports.string().min(1).max(READ_LIMITS.maxBytes).optional().describe("The text of a Plotwork SVG; needed to pin."),
+  path: external_exports.string().min(1).max(500).optional().describe("Where the page serves svg from, when there is no url."),
+  format: external_exports.enum(EMBED_FORMATS).default("html").describe("html for any page, react for React."),
+  live: external_exports.boolean().default(false).describe("Follow new versions: /l/ and /o/ links only."),
+  pin: external_exports.boolean().default(false).describe("Show only exactly this picture: needs svg."),
+  label: external_exports.string().max(EMBED_LABEL_MAX_LENGTH).optional().describe("What the diagram shows, for a screen reader.")
+}).refine((input2) => input2.url !== void 0 || input2.svg !== void 0, "Send url, svg, or both.").meta({ id: "EmbedDiagramInput", description: "A Plotwork picture to show with the viewer, and how." });
+var EmbedDiagramResponseSchema = external_exports.object({
+  ok: external_exports.boolean().describe("False when the url is not a hosted picture or the svg is not an SVG; message and hint say why."),
+  snippet: external_exports.string().nullable().describe("The code to paste into the page or component, or null when ok is false."),
+  install: external_exports.string().describe("The command that installs the viewer."),
+  src: external_exports.string().nullable().describe("The address the snippet loads the picture from."),
+  linkKind: external_exports.enum(HOSTED_LINK_KINDS).nullable().describe("picture (/d/), stable (/l/), organisation (/o/), or null for a file the page serves."),
+  fingerprint: external_exports.string().nullable().describe("sha256-<hex> of the svg text, whether or not the snippet pins it; null without svg."),
+  live: external_exports.boolean().describe("True when the snippet carries live."),
+  pinned: external_exports.boolean().describe("True when the snippet carries fingerprint."),
+  notes: external_exports.array(external_exports.string()).describe("Each choice left out and why, and what to know about the link."),
+  message: external_exports.string().describe("What happened, in one sentence."),
+  hint: external_exports.string().nullable().describe("What to send instead, when ok is false.")
+}).meta({ id: "EmbedDiagramResponse", description: "A snippet that shows a Plotwork picture with the viewer." });
+
 // ../../packages/diagrams/src/schemas/health.ts
 var HealthResponseSchema = external_exports.object({
   status: external_exports.literal("ok"),
@@ -103973,6 +104085,56 @@ var compareDiagramsTool = defineTool({
   execute: async (input2) => ok(await compareDiagrams(input2))
 });
 
+// ../../packages/diagrams/src/embed/embed-diagram.ts
+var EMBED_DEFAULT_PATH = "diagram.svg";
+function isSvgText(text5) {
+  return /^\s*(?:<\?xml[^>]*>\s*)?(?:<!--[\s\S]*?-->\s*|<!DOCTYPE[^>]*>\s*)*<svg[\s>]/i.test(text5);
+}
+function refused3(message2, hint2) {
+  return { ok: false, snippet: null, install: EMBED_INSTALL, src: null, linkKind: null, fingerprint: null, live: false, pinned: false, notes: [], message: message2, hint: hint2 };
+}
+async function embedDiagram(input2) {
+  let src;
+  let link2 = null;
+  const extra = [];
+  if (input2.url !== void 0) {
+    const read = readHostedLink(input2.url);
+    if (!read.ok) return refused3(read.message, read.hint);
+    src = read.url;
+    link2 = read.kind;
+    if (input2.path !== void 0) extra.push("path is not used: the snippet loads the picture from url.");
+  } else {
+    src = input2.path ?? EMBED_DEFAULT_PATH;
+    if (input2.path === void 0) extra.push(`src is ${EMBED_DEFAULT_PATH}: save the svg where the page serves it and change src to that path, or send path.`);
+  }
+  if (input2.svg !== void 0 && !isSvgText(input2.svg)) return refused3("The svg text is not an SVG: it does not start with an <svg> element.", "Send the whole text of a Plotwork .svg file, or only a url.");
+  const embed = await buildEmbed({ src, link: link2, svg: input2.svg ?? null, format: input2.format, live: input2.live, pin: input2.pin, label: input2.label });
+  return {
+    ok: true,
+    snippet: embed.snippet,
+    install: embed.install,
+    src,
+    linkKind: link2,
+    fingerprint: embed.fingerprint,
+    live: embed.live,
+    pinned: embed.pinned,
+    notes: [...embed.notes, ...extra],
+    message: `A ${input2.format === "react" ? "React" : "HTML"} snippet that shows ${link2 === null ? "the SVG file" : `the ${link2 === "picture" ? "published picture" : link2 === "stable" ? "stable link" : "organisation embed link"}`} with the viewer.`,
+    hint: null
+  };
+}
+
+// ../../packages/diagrams/src/tools/embed-diagram.ts
+var embedDiagramTool = defineTool({
+  name: "embed_diagram",
+  title: "Embed diagram",
+  description: "Write a snippet that shows a Plotwork picture in a web page or a React app with the viewer @plotwork.official/viewer (pan, zoom, trace). Send a hosted url, the svg text of a file the site serves, or both. pin adds the svg fingerprint so only that picture shows; live follows /l/ and /o/ links. A choice that cannot apply is left out and said in notes. Fetches nothing.",
+  callExample: { url: "https://cdn.plotwork.dev/l/abcdefghijklmnopqrstuv.svg", live: true },
+  input: EmbedDiagramInputSchema,
+  output: EmbedDiagramResponseSchema,
+  execute: async (input2) => ok(await embedDiagram(input2))
+});
+
 // ../../packages/diagrams/src/tools/workflows/shared.ts
 function schemesFor(choice3) {
   return choice3 === "both" ? ["light", "dark"] : [choice3];
@@ -104313,7 +104475,7 @@ function flattenTree2(items2, depth = 0) {
 }
 
 // ../../packages/diagrams/src/tools/workflows/get-pattern.ts
-function refused3(id, problems) {
+function refused4(id, problems) {
   return {
     found: false,
     id,
@@ -104335,7 +104497,7 @@ function refused3(id, problems) {
 }
 async function getPattern2(input2, ops = ENGINE_OPS) {
   const filled2 = ops.fillPattern(input2.id, input2.provider, input2.slots ?? {});
-  if (!filled2.ok) return refused3(input2.id, filled2.error.map((problem2) => ({ ...problem2 })));
+  if (!filled2.ok) return refused4(input2.id, filled2.error.map((problem2) => ({ ...problem2 })));
   const pattern3 = filled2.value;
   return {
     found: true,
@@ -106702,7 +106864,8 @@ var TOOLS = [
   validateDiagramTool,
   renderDiagramTool,
   outlineDiagramTool,
-  searchIconsTool
+  searchIconsTool,
+  embedDiagramTool
 ];
 function getTool(name2) {
   return TOOLS.find((tool) => tool.name === name2);
