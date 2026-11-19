@@ -1723,8 +1723,8 @@ var VIEWER_PACKAGE = {
 // ../../packages/diagrams/src/constants/action-release.ts
 var ACTION_REPOSITORY = "plotwork-official/plotwork-action";
 var ACTION_RELEASE = {
-  version: "1.7.0",
-  sha: "f1bb2403552880c8dd9c0f2c5ed213b36c3c9390"
+  version: "1.9.0",
+  sha: "62c17dfd42c3e67e29de0f6d0adbad6b4831136a"
 };
 var PINNED_ACTION_LINE = `uses: ${ACTION_REPOSITORY}@${ACTION_RELEASE.sha} # v${ACTION_RELEASE.version}`;
 function versionAtLeast(version2, since) {
@@ -1763,7 +1763,7 @@ var VIEW_LINKS = {
 };
 var CLI_RELEASE = {
   packageName: "@buun_group/plotwork",
-  version: "0.8.0",
+  version: "0.10.0",
   onNpm: true
 };
 var CLI_SCHEME_FLAG_SINCE = "0.3.0";
@@ -1832,7 +1832,7 @@ var KEY_VARIABLE = STYLE_RULES.env.access;
 // ../../packages/diagrams/src/constants/mcp-release.ts
 var MCP_RELEASE = {
   packageName: "@buun_group/plotwork-mcp",
-  version: "0.10.0"
+  version: "0.12.0"
 };
 function mcpPackagePin(release = MCP_RELEASE) {
   return `${release.packageName}@${release.version}`;

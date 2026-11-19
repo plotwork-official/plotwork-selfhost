@@ -57,7 +57,7 @@ import {
   unknown,
   url,
   useSelfhostIconArt
-} from "./chunks/chunk-K6TCNNVA.mjs";
+} from "./chunks/chunk-6GEIO2ME.mjs";
 import "./chunks/chunk-42BVPR2M.mjs";
 
 // ../../node_modules/.pnpm/@hono+node-server@2.1.3_hono@4.13.12/node_modules/@hono/node-server/dist/constants-BLSFu_RU.mjs
@@ -20260,8 +20260,15 @@ var COMPANY = {
   name: "Buun Group",
   /** The company's own site, which the credit links to. */
   website: "https://buungroup.com",
-  /** The company's mark, served by its own site so the credit never shows a stale copy of it. */
-  logoUrl: "https://buungroup.com/logo/logo.svg",
+  /**
+   * The company's mark, served by Buun Group's assets CDN so every product shows the current one: `logoUrl` for a light page,
+   * `logoDarkUrl` for a dark one (`CompanyMark` picks), and `logoPngUrl`, 512 pixels square, where an image must be a raster, as in
+   * structured data. A page that shows the mark allows `assetsOrigin` in its `img-src`.
+   */
+  assetsOrigin: "https://assets.buungroup.com",
+  logoUrl: "https://assets.buungroup.com/brand/logo/buungroup-mark.svg",
+  logoDarkUrl: "https://assets.buungroup.com/brand/logo/buungroup-mark-on-dark.svg",
+  logoPngUrl: "https://assets.buungroup.com/brand/logo/buungroup-mark-512.png",
   /** The registered name, for the privacy policy and every other legal page. */
   legalName: "Buun Group Pty Ltd",
   /** The Australian Business Number, as the company publishes it on its other products' legal pages. */
@@ -20319,7 +20326,7 @@ var MARK_ICON = {
 // package.json
 var package_default = {
   name: "@buun/selfhost",
-  version: "0.9.0",
+  version: "0.9.1-beta.1",
   private: true,
   description: "The self-hosted Plotwork engine: MCP over Streamable HTTP and a stateless REST surface in one Node server and container image. No accounts, no hosting, no network.",
   type: "module",
